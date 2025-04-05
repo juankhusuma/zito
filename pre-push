@@ -1,6 +1,4 @@
 #!/usr/bin/env sh
-. "$(dirname "$0")/h"
-
 echo "🚀 running pre-commit hook for pandora directory checksums..."
 
 # Directory where the md5 files are stored
