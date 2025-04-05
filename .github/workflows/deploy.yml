@@ -82,55 +82,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-        
-      - name: Create environment files from secrets
-        env:
-          CHRONOS_ENV: ${{ secrets.CHRONOS_ENV }}
-          HERMES_ENV: ${{ secrets.HERMES_ENV }}
-        run: |
-          # Get list of directories
-          DIRS=$(echo '${{ needs.prepare.outputs.directories }}' | jq -r '.[]')
-          mkdir -p env_files
-          
-          # For each directory, check if there's a corresponding secret
-          for dir in $DIRS; do
-            # Convert directory name to uppercase for secret name format
-            SECRET_NAME=$(echo "${dir}_ENV" | tr '[:lower:]' '[:upper:]')
-            
-            # Access the environment variable with the name stored in SECRET_NAME
-            # This avoids trying to use dynamic lookup in secrets context
-            SECRET_VALUE=$(printenv $SECRET_NAME || echo "")
-            
-            if [ ! -z "$SECRET_VALUE" ]; then
-              # Create directory structure and .env file
-              mkdir -p "env_files/${dir}"
-              echo "$SECRET_VALUE" > "env_files/${dir}/.env"
-              echo "Created .env file for ${dir}"
-            else
-              echo "No environment variables found for ${dir}"
-            fi
-          done
-          
-          # Archive all env files
-          tar -czf env_files.tar.gz -C env_files .
-          
-          # Clean up
-          rm -rf env_files
-
-      - name: Transfer environment files
-        uses: appleboy/scp-action@v0.1.4
-        with:
-          host: ${{ secrets.SSH_HOST_IP }}
-          username: ${{ secrets.SSH_HOST_USER }}
-          password: ${{ secrets.SSH_HOST_PASS }}
-          port: ${{ secrets.SSH_PORT }}
-          proxy_host: ${{ secrets.SSH_JUMP_HOST_URL }}
-          proxy_username: ${{ secrets.SSH_JUMP_HOST_USER }}
-          proxy_key: ${{ secrets.SSH_JUMP_HOST_KEY }}
-          proxy_port: ${{ secrets.SSH_JUMP_HOST_PORT }}
-          proxy_passphrase: ${{ secrets.SSH_JUMP_HOST_PASSPHRASE }}
-          source: "env_files.tar.gz"
-          target: "~/"
 
       - name: Releasing New Version
         uses: appleboy/ssh-action@v1.2.0
@@ -144,11 +95,7 @@ jobs:
           proxy_key: ${{ secrets.SSH_JUMP_HOST_KEY }}
           proxy_port: ${{ secrets.SSH_JUMP_HOST_PORT }}
           proxy_passphrase: ${{ secrets.SSH_JUMP_HOST_PASSPHRASE }}
-          script: |
-            # Extract environment files
-            tar -xzf env_files.tar.gz
-            rm env_files.tar.gz
-            
+          script: |     
             # Clean up Docker images (with error handling)
             docker rmi $(docker images -a -q) || true
             
