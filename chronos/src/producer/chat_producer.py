@@ -26,6 +26,8 @@ class ChatProducer:
     @classmethod
     async def connect(klass, loop):
         print(f"host: {os.getenv('RABBITMQ_HOST', 'localhost')}")
+        print(f"user: {os.getenv('RABBITMQ_USER')}")
+        print(f"password: {os.getenv('RABBITMQ_PASS')}")
         conn =  await aio_pika.connect_robust(
             host=os.getenv("RABBITMQ_HOST", "localhost"), loop=loop, login=os.getenv("RABBITMQ_USER"), password=os.getenv("RABBITMQ_PASS")
         )
