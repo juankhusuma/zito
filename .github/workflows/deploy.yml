@@ -1,0 +1,161 @@
+name: Deploy Docker Images
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      directories: ${{ steps.get-dirs.outputs.dirs }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Check if __build__ file exists
+        id: check-build-file
+        run: |
+          if [ -f "pandora/__build__" ]; then
+            echo "build_file_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "build_file_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Read directories from __build__ file
+        id: get-dirs
+        if: steps.check-build-file.outputs.build_file_exists == 'true'
+        run: |
+          DIRS=$(cat pandora/__build__ | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "dirs=$DIRS" >> $GITHUB_OUTPUT
+          echo "Found directories: $DIRS"
+
+  build-and-push:
+    needs: prepare
+    if: needs.prepare.outputs.directories != '[]' && needs.prepare.outputs.directories != ''
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        directory: ${{ fromJson(needs.prepare.outputs.directories) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Check if Dockerfile exists
+        id: check-dockerfile
+        run: |
+          if [ -f "${{ matrix.directory }}/Dockerfile" ]; then
+            echo "dockerfile_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "dockerfile_exists=false" >> $GITHUB_OUTPUT
+            echo "Warning: Dockerfile not found in ${{ matrix.directory }}/"
+          fi
+
+      - name: Build and push
+        if: steps.check-dockerfile.outputs.dockerfile_exists == 'true'
+        uses: docker/build-push-action@v4
+        with:
+          context: ./${{ matrix.directory }}
+          file: ./${{ matrix.directory }}/Dockerfile
+          push: true
+          tags: lexincsui/chat:${{ matrix.directory }}
+          cache-from: type=registry,ref=lexincsui/chat:${{ matrix.directory }}
+          cache-to: type=inline
+
+      - name: Image update status
+        if: steps.check-dockerfile.outputs.dockerfile_exists == 'true'
+        run: echo "✅ Successfully built and pushed Docker image for ${{ matrix.directory }}"
+
+  deploy:
+    needs: [prepare, build-and-push]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Create environment files from secrets
+        run: |
+          # Get list of directories
+          DIRS=$(echo '${{ needs.prepare.outputs.directories }}' | jq -r '.[]')
+          mkdir -p env_files
+          
+          # For each directory, check if there's a corresponding secret
+          for dir in $DIRS; do
+            # Convert directory name to uppercase for secret name format
+            SECRET_NAME=$(echo "${dir}_ENV" | tr '[:lower:]' '[:upper:]')
+            
+            # Use indirect reference to access the secret value
+            # This is a workaround since GitHub Actions doesn't support dynamic secret names directly
+            SECRET_VALUE=$(eval echo \${{ secrets.$SECRET_NAME }})
+            
+            if [ ! -z "$SECRET_VALUE" ]; then
+              # Create directory structure and .env file
+              mkdir -p "env_files/${dir}"
+              echo "$SECRET_VALUE" > "env_files/${dir}/.env"
+              echo "Created .env file for ${dir}"
+            else
+              echo "No environment variables found for ${dir}"
+            fi
+          done
+          
+          # Archive all env files
+          tar -czf env_files.tar.gz -C env_files .
+          
+          # Clean up
+          rm -rf env_files
+
+      - name: Transfer environment files
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.SSH_HOST_IP }}
+          username: ${{ secrets.SSH_HOST_USER }}
+          password: ${{ secrets.SSH_HOST_PASS }}
+          port: ${{ secrets.SSH_PORT }}
+          proxy_host: ${{ secrets.SSH_JUMP_HOST_URL }}
+          proxy_username: ${{ secrets.SSH_JUMP_HOST_USER }}
+          proxy_key: ${{ secrets.SSH_JUMP_HOST_KEY }}
+          proxy_port: ${{ secrets.SSH_JUMP_HOST_PORT }}
+          proxy_passphrase: ${{ secrets.SSH_JUMP_HOST_PASSPHRASE }}
+          source: "env_files.tar.gz"
+          target: "~/"
+
+      - name: Releasing New Version
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST_IP }}
+          username: ${{ secrets.SSH_HOST_USER }}
+          password: ${{ secrets.SSH_HOST_PASS }}
+          port: ${{ secrets.SSH_PORT }}
+          proxy_host: ${{ secrets.SSH_JUMP_HOST_URL }}
+          proxy_username: ${{ secrets.SSH_JUMP_HOST_USER }}
+          proxy_key: ${{ secrets.SSH_JUMP_HOST_KEY }}
+          proxy_port: ${{ secrets.SSH_JUMP_HOST_PORT }}
+          proxy_passphrase: ${{ secrets.SSH_JUMP_HOST_PASSPHRASE }}
+          script: |
+            # Extract environment files
+            tar -xzf env_files.tar.gz
+            rm env_files.tar.gz
+            
+            # Clean up Docker images (with error handling)
+            docker rmi $(docker images -a -q) || true
+            
+            # Login to Docker Hub
+            docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} -p ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+            
+            # Pull latest images
+            docker compose pull
+            
+            # Start services with the new environment variables
+            docker compose up -d
+            
+            echo "Deployment completed successfully"

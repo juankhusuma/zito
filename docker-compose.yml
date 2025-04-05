@@ -1,0 +1,106 @@
+services:
+  aphrodite:
+    build:
+      context: ./aphrodite
+      dockerfile: Dockerfile
+    container_name: aphrodite
+    restart: always
+    ports:
+      - 5000:80
+    env_file:
+      - ./aphrodite/.env
+    depends_on:
+      - chronos
+
+  chronos:
+    build:
+      context: ./chronos
+      dockerfile: Dockerfile
+    container_name: chronos
+    restart: always
+    ports:
+      - 8080:8000
+    env_file:
+      - ./chronos/.env
+    depends_on:
+      - rabbitmq
+
+  hermes-a:
+    container_name: hermes-alpha
+    build:
+      context: ./hermes
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - 8000:8000
+    env_file:
+      - ./hermes/.env
+    depends_on:
+      - rabbitmq
+
+  hermes-b:
+    container_name: hermes-beta
+    build:
+      context: ./hermes
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - 8001:8000
+    env_file:
+      - ./hermes/.env
+    depends_on:
+      - rabbitmq
+
+  hermes-c:
+    container_name: hermes-gamma
+    build:
+      context: ./hermes
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - 8002:8000
+    env_file:
+      - ./hermes/.env
+    depends_on:
+      - rabbitmq
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    container_name: rabbitmq
+    restart: always
+    ports:
+      - 5672:5672
+      - 15672:15672
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+    configs:
+      - source: rabbitmq-plugins
+        target: /etc/rabbitmq/enabled_plugins
+    volumes:
+      - rabbitmq-lib:/var/lib/rabbitmq/
+      - rabbitmq-log:/var/log/rabbitmq
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_volume:/root/.ollama
+    tty: true
+    restart: always
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_HOST=0.0.0.0
+
+configs:
+  rabbitmq-plugins:
+    content: "[rabbitmq_management]."
+
+volumes:
+  rabbitmq-lib:
+    driver: local
+  rabbitmq-log:
+    driver: local
+  ollama_volume:
+    driver: local

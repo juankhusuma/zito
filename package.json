@@ -1,0 +1,19 @@
+{
+  "name": "chat-monorepo",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepare": "husky"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged",
+      "pre-push": ".husky/pre-push"
+    }
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
