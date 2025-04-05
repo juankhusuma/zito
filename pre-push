@@ -1,0 +1,86 @@
+#!/usr/bin/env sh
+. "$(dirname "$0")/h"
+
+echo "🚀 running pre-commit hook for pandora directory checksums..."
+
+# Directory where the md5 files are stored
+PANDORA_DIR="$(git rev-parse --show-toplevel)/pandora"
+BUILD_FILE="${PANDORA_DIR}/__build__"
+CHANGED_DIRS=()
+
+# Function to calculate directory checksum
+calculate_dir_checksum() {
+    local dir="$1"
+    find "$dir" -type f -not -path "*/\.*" -not -path "*/node_modules/*" \
+        -not -name "*.md5" -not -name "__build__" | sort | xargs md5sum 2>/dev/null | md5sum | cut -d ' ' -f 1
+}
+
+# Check if pandora directory exists
+if [ ! -d "$PANDORA_DIR" ]; then
+    echo "🔴 error: pandora directory not found at $PANDORA_DIR"
+    exit 1
+fi
+
+# Create __build__ file if it doesn't exist
+touch "$BUILD_FILE"
+
+# Step 1 & 2: Check all .md5 files in pandora directory
+echo "🔎 checking md5 files against directory checksums..."
+for md5_file in "$PANDORA_DIR"/*.md5; do
+    # Skip if no md5 files found
+    [ -e "$md5_file" ] || continue
+    
+    # Get directory name from MD5 filename
+    dir_name=$(basename "$md5_file" .md5)
+    dir_path="$(git rev-parse --show-toplevel)/$dir_name"
+    
+    # Check if the directory exists
+    if [ -d "$dir_path" ]; then
+        stored_checksum=$(cat "$md5_file")
+        current_checksum=$(calculate_dir_checksum "$dir_path")
+        
+        # Step 3: If checksums don't match, save directory to array
+        if [ "$stored_checksum" != "$current_checksum" ]; then
+            echo "> checksum mismatch for $dir_name"
+            CHANGED_DIRS+=("$dir_name")
+        fi
+    else
+        echo "⚠️ warning: directory $dir_path referenced by $md5_file does not exist"
+    fi
+done
+
+# Step 4: Regenerate all directory checksums
+echo "🏗️  regenerating directory checksums..."
+for md5_file in "$PANDORA_DIR"/*.md5; do
+    # Skip if no md5 files found
+    [ -e "$md5_file" ] || continue
+    
+    dir_name=$(basename "$md5_file" .md5)
+    dir_path="$(git rev-parse --show-toplevel)/$dir_name"
+    
+    if [ -d "$dir_path" ]; then
+        new_checksum=$(calculate_dir_checksum "$dir_path")
+        echo "$new_checksum" > "$md5_file"
+        echo "> updated checksum for $dir_name"
+    fi
+done
+
+# Step 5: Write all changed directory names to /pandora/__build__
+if [ ${#CHANGED_DIRS[@]} -gt 0 ]; then
+    echo "📝 writing changed directories to $BUILD_FILE"
+    printf "%s\n" "${CHANGED_DIRS[@]}" > "$BUILD_FILE"
+    echo "🕵️  changes detected in: ${CHANGED_DIRS[*]}"
+    
+    # Add the updated files to the commit
+    git add "$PANDORA_DIR"/*.md5
+    git add "$BUILD_FILE"
+else
+    # Clear the build file if no changes
+    echo "" > "$BUILD_FILE"
+    echo "🟢 no directory checksum changes detected"
+fi
+
+echo "✅ pre-commit hook completed successfully"
+
+# Continue with the commit
+exit 0
