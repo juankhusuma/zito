@@ -21,7 +21,7 @@ RUN pnpm install
 
 # Copy the project files into the working directory
 COPY ./ ./
-ENV VITE_API_URL=http://localhost:8080
+ENV VITE_API_URL=https://chat.lexin.cs.ui.ac.id/api/v1
 ENV VITE_SUPABASE_URL=https://fxapohscvuvrkucwmooz.supabase.co
 ENV VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ4YXBvaHNjdnV2cmt1Y3dtb296Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc0MzU4NjEsImV4cCI6MjA1MzAxMTg2MX0.fg4KKyp9-ufSHEb9ato-NkrqbMLllD-K9xYrPchY9XM        
 
@@ -34,7 +34,7 @@ RUN pnpm build
 
 # Use the official NGINX image for production
 FROM nginx:stable-alpine as production
-ENV VITE_API_URL=http://localhost:8080
+ENV VITE_API_URL=https://chat.lexin.cs.ui.ac.id/api/v1
 ENV VITE_SUPABASE_URL=https://fxapohscvuvrkucwmooz.supabase.co
 ENV VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ4YXBvaHNjdnV2cmt1Y3dtb296Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc0MzU4NjEsImV4cCI6MjA1MzAxMTg2MX0.fg4KKyp9-ufSHEb9ato-NkrqbMLllD-K9xYrPchY9XM        
 

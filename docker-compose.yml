@@ -84,6 +84,19 @@ services:
       - OLLAMA_KEEP_ALIVE=24h
       - OLLAMA_HOST=0.0.0.0
 
+  db:
+    image: pgvector/pgvector:pg17
+    container_name: database
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
 configs:
   rabbitmq-plugins:
     content: "[rabbitmq_management]."
@@ -95,3 +108,4 @@ volumes:
     driver: local
   ollama_volume:
     driver: local
+  pgdata:

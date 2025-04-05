@@ -23,6 +23,7 @@ class History(BaseModel):
 class ChatConsumer:
     @staticmethod
     async def consume(loop):
+        print(f"host: {os.getenv('RABBITMQ_HOST', 'localhost')}")
         conn =  await aio_pika.connect_robust(
             host=os.getenv("RABBITMQ_HOST", "localhost"), loop=loop, login=os.getenv("RABBITMQ_USER"), password=os.getenv("RABBITMQ_PASS")
         )
