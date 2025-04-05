@@ -55,6 +55,5 @@ USER appuser
 
 # Expose the port the application listens on
 EXPOSE 8000
-ENV RABBITMQ_HOST=host.docker.internal
 # Run the application
 CMD ["uvicorn", "src.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
