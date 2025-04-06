@@ -26,7 +26,7 @@ class ChatProducer:
     @classmethod
     async def connect(klass, loop):
         conn =  await aio_pika.connect_robust(
-            host=os.getenv("RABBITMQ_HOST", "localhost"), loop=loop, login=os.getenv("RABBITMQ_USER"), password=os.getenv("RABBITMQ_PASS")
+            host=os.getenv("RABBITMQ_HOST", "localhost"), loop=loop, login=os.getenv("RABBITMQ_USER"), password=os.getenv("RABBITMQ_PASS"),
         )
         channel = await conn.channel()
         publish_queue_name = 'chat'

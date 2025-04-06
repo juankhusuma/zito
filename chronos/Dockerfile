@@ -52,8 +52,8 @@ RUN chown -R appuser:appuser /chronos
 
 # Use non-privileged user
 USER appuser
-
+ENV RABBITMQ_HOST=rabbitmq
 # Expose the port the application listens on
 EXPOSE 8000
 # Run the application
-CMD ["uvicorn", "src.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "src.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

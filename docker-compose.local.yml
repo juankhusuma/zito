@@ -25,40 +25,15 @@ services:
     depends_on:
       - rabbitmq
 
-  hermes-a:
-    container_name: hermes-alpha
+  hermes:
     build:
       context: ./hermes
       dockerfile: Dockerfile
-    restart: always
-    ports:
-      - 8000:8000
-    env_file:
-      - ./hermes/.env
-    depends_on:
-      - rabbitmq
+    deploy:
+      replicas: 4
+      restart_policy:
+        condition: any
 
-  hermes-b:
-    container_name: hermes-beta
-    build:
-      context: ./hermes
-      dockerfile: Dockerfile
-    restart: always
-    ports:
-      - 8001:8000
-    env_file:
-      - ./hermes/.env
-    depends_on:
-      - rabbitmq
-
-  hermes-c:
-    container_name: hermes-gamma
-    build:
-      context: ./hermes
-      dockerfile: Dockerfile
-    restart: always
-    ports:
-      - 8002:8000
     env_file:
       - ./hermes/.env
     depends_on:

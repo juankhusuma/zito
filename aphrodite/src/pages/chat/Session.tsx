@@ -10,6 +10,7 @@ interface Chat {
     created_at: string;
     user_uid: string;
     session_uid: string;
+    is_loading: boolean;
 }
 
 export default function Session() {
@@ -72,7 +73,7 @@ export default function Session() {
                             </tr>
                         ) : (
                             <tr key={chat.id}>
-                                <td className='p-2 max-w-1/2 w-1/2 text-wrap'><span className="font-bold">assistant:</span> {chat.content}</td>
+                                <td className='p-2 max-w-1/2 w-1/2 text-wrap'><span className="font-bold">assistant:</span> {chat.is_loading ? "loading..." : chat.content}</td>
                                 <td className='p-2 max-w-1/2 w-1/2 text-wrap'></td>
                             </tr>
                         )

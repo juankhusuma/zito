@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from src.producer.chat_producer import ChatProducer, History
+from ..producer.chat_producer import ChatProducer, History
 from typing import Annotated
 
 
