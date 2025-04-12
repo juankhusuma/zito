@@ -13,7 +13,7 @@ interface ChatBubbleProps {
 }
 
 export default function ChatBubble(props: ChatBubbleProps) {
-    const text = useAnimatedText(props.message, props.sender, !!props.isDone);
+    const text = (props.sender === "user" || props.isDone) ? props.message : useAnimatedText(props.message);
     return (
         <div className={cn("flex mb-3 text-xs lg:text-sm", props.sender === "user" ? "flex-row" : "flex-row-reverse")}>
             <div className={cn("flex items-start w-full", props.sender === "user" ? "justify-end" : "justify-start")}>

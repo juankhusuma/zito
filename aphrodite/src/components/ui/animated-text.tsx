@@ -1,7 +1,7 @@
 import { animate } from "framer-motion";
 import { useEffect, useState } from "react";
 
-export function useAnimatedText(text: string, role: string, isDone: boolean, delimiter: string = "") {
+export function useAnimatedText(text: string, delimiter: string = "") {
     const [cursor, setCursor] = useState(0);
     const [startingCursor, setStartingCursor] = useState(0);
     const [prevText, setPrevText] = useState(text);
@@ -12,7 +12,6 @@ export function useAnimatedText(text: string, role: string, isDone: boolean, del
     }
 
     useEffect(() => {
-        if (role === "user" || isDone) return;
         const parts = text.split(delimiter);
         const duration = delimiter === "" ? 1 : // Character animation
             delimiter === " " ? 4 : // Word animation
