@@ -3,7 +3,6 @@ import supabase from "../../common/supabase"
 import { useNavigate } from "react-router"
 import PrimaryButton from "@/components/button"
 import { Icon } from "@iconify/react/dist/iconify.js"
-import { Loader } from "@mantine/core"
 import { useAuth } from "@/hoc/AuthProvider"
 
 export default function Login() {

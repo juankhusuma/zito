@@ -1,58 +1,37 @@
 services:
-  # aphrodite:
-  #   image: lexincsui/chat:aphrodite
-  #   container_name: aphrodite
-  #   restart: always
-  #   ports:
-  #     - 5000:80
-  #   env_file:
-  #     - ./aphrodite/.env
-  #   depends_on:
-  #     - chronos
+  aphrodite:
+    image: lexincsui/chat:aphrodite
+    container_name: aphrodite
+    restart: always
+    ports:
+      - 5000:80
+    env_file:
+      - ./aphrodite/.env
+    depends_on:
+      - chronos
 
-  # chronos:
-  #   image: lexincsui/chat:chronos
-  #   container_name: chronos
-  #   restart: always
-  #   ports:
-  #     - 8080:8000
-  #   env_file:
-  #     - ./chronos/.env
-  #   depends_on:
-  #     - rabbitmq
+  chronos:
+    image: lexincsui/chat:chronos
+    container_name: chronos
+    restart: always
+    ports:
+      - 8080:8000
+    env_file:
+      - ./chronos/.env
+    depends_on:
+      - rabbitmq
 
-  # hermes-a:
-  #   container_name: hermes-alpha
-  #   image: lexincsui/chat:hermes
-  #   restart: always
-  #   ports:
-  #     - 8000:8000
-  #   env_file:
-  #     - ./hermes/.env
-  #   depends_on:
-  #     - rabbitmq
-
-  # hermes-b:
-  #   container_name: hermes-beta
-  #   image: lexincsui/chat:hermes
-  #   restart: always
-  #   ports:
-  #     - 8001:8000
-  #   env_file:
-  #     - ./hermes/.env
-  #   depends_on:
-  #     - rabbitmq
-
-  # hermes-c:
-  #   container_name: hermes-gamma
-  #   image: lexincsui/chat:hermes
-  #   restart: always
-  #   ports:
-  #     - 8002:8000
-  #   env_file:
-  #     - ./hermes/.env
-  #   depends_on:
-  #     - rabbitmq
+  hermes:
+    container_name: hermes-alpha
+    image: lexincsui/chat:hermes
+    deploy:
+      replicas: 4
+      restart_policy:
+        condition: any
+    env_file:
+      - ./hermes/.env
+    depends_on:
+      - rabbitmq
 
   rabbitmq:
     image: rabbitmq:4-management-alpine
@@ -70,31 +49,32 @@ services:
     volumes:
       - rabbitmq-lib:/var/lib/rabbitmq/
       - rabbitmq-log:/var/log/rabbitmq
-  # ollama:
-  #   image: ollama/ollama:latest
-  #   container_name: ollama
-  #   ports:
-  #     - "11434:11434"
-  #   volumes:
-  #     - ollama_volume:/root/.ollama
-  #   tty: true
-  #   restart: always
-  #   environment:
-  #     - OLLAMA_KEEP_ALIVE=24h
-  #     - OLLAMA_HOST=0.0.0.0
 
-  # db:
-  #   image: pgvector/pgvector:pg17
-  #   container_name: database
-  #   restart: always
-  #   environment:
-  #     POSTGRES_USER: ${POSTGRES_USER}
-  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-  #     POSTGRES_DB: ${POSTGRES_DB}
-  #   ports:
-  #     - "5432:5432"
-  #   volumes:
-  #     - pgdata:/var/lib/postgresql/data
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_volume:/root/.ollama
+    tty: true
+    restart: always
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_HOST=0.0.0.0
+
+  db:
+    image: pgvector/pgvector:pg17
+    container_name: database
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
 
 configs:
   rabbitmq-plugins:

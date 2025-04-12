@@ -2,13 +2,11 @@ import { Sheet, SheetTrigger, SheetContent } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
 // import Image from "next/image"
 
-import { useEffect, useState } from "react";
 // import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Icon } from "@iconify/react/dist/iconify.js";
 // import LexinLogo from "./LexinLogo";
 // import { getCookie } from "cookies-next";
 // import UserDataResponseType from "@/networks/response-type/UserDataResponseType";
-import { Search } from "lucide-react";
 import { useAuth } from "@/hoc/AuthProvider";
 import { Skeleton } from "../ui/skeleton";
 import supabase from "@/common/supabase";
