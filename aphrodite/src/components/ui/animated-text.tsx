@@ -6,14 +6,13 @@ export function useAnimatedText(text: string, role: string, isDone: boolean, del
     const [startingCursor, setStartingCursor] = useState(0);
     const [prevText, setPrevText] = useState(text);
 
-    if (role === "user" || isDone) return text;
-
     if (prevText !== text) {
         setPrevText(text);
         setStartingCursor(text.startsWith(prevText) ? cursor : 0);
     }
 
     useEffect(() => {
+        if (role === "user" || isDone) return;
         const parts = text.split(delimiter);
         const duration = delimiter === "" ? 1 : // Character animation
             delimiter === " " ? 4 : // Word animation

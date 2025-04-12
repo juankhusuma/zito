@@ -22,7 +22,6 @@ services:
       - rabbitmq
 
   hermes:
-    container_name: hermes-alpha
     image: lexincsui/chat:hermes
     deploy:
       replicas: 4
