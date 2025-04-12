@@ -13,7 +13,6 @@ import Navbar from './components/layout/navbar.tsx';
 import Footer from './components/layout/footer.tsx';
 import { MantineProvider } from '@mantine/core';
 import ChatLayout from './components/chat/layout.tsx';
-import { SessionChatPage } from './pages/chat/(session_id).tsx';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -21,7 +20,7 @@ createRoot(document.getElementById('root')!).render(
       <MantineProvider>
         <div className='flex flex-col justify-between min-h-svh'>
           <Navbar />
-          <div className='pt-5 pb-20 flex-1'>
+          <div className='pt-5 flex-1'>
             <BrowserRouter>
               <Routes>
                 <Route path="/" element={<Home />} />

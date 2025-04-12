@@ -1,7 +1,12 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router";
 import { useAuth } from "../../hoc/AuthProvider";
 import supabase from "../../common/supabase";
+import { PromptInput, PromptInputAction, PromptInputActions, PromptInputTextarea } from "@/components/ui/prompt-input";
+import { Button } from "@/components/ui/button";
+import { ArrowUp, Square } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import ChatBubble from "@/components/chat/bubble";
 
 interface Chat {
     id: string;
@@ -10,7 +15,7 @@ interface Chat {
     created_at: string;
     user_uid: string;
     session_uid: string;
-    is_loading: boolean;
+    state: "done" | "loading" | "error" | "generating";
 }
 
 export default function Session() {
@@ -18,7 +23,22 @@ export default function Session() {
     const { sessionId } = useParams()
     const { user, loading } = useAuth()
     const [chats, setChats] = React.useState<Chat[]>([])
+    const [isLoading, setIsLoading] = React.useState(false)
     const [prompt, setPrompt] = React.useState("")
+    const scrollAreaRef = useRef<HTMLDivElement>(null)
+
+    const scrollToBottom = () => {
+        if (scrollAreaRef.current) {
+            const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+            if (scrollContainer) {
+                scrollContainer.scrollTop = scrollContainer.scrollHeight;
+            }
+        }
+    }
+
+    useEffect(() => {
+        setIsLoading(chats.some((chat) => chat.state === "loading"))
+    }, [chats])
 
     useEffect(() => {
         if (!loading && !user) {
@@ -26,6 +46,12 @@ export default function Session() {
             navigate("/login")
         }
     }, [user, loading, navigate])
+
+    useEffect(() => {
+        if (chats.length > 0) {
+            scrollToBottom();
+        }
+    }, [chats]);
 
     useEffect(() => {
         if (!user) return
@@ -53,77 +79,104 @@ export default function Session() {
     }, [user, sessionId])
 
     return (
-        <div className='font-mono p-5 flex flex-col justify-center items-center'>
-            <h1 className='font-bold mb-10'>Chat Session</h1>
-            <table className="w-1/2">
-                <thead>
-                    <tr>
-                        <th></th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
+        <div className='font-mono p-5 flex flex-col items-center justify-center'>
+            <ScrollArea ref={scrollAreaRef} className="h-[calc(100svh-30rem)] w-full lg:w-2/3 flex justify-center items-center lg:px-5">
+                <div className="w-full">
                     {chats.sort((a, b) => (
                         new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
                     )).map((chat) => (
-                        chat.role === "user" ? (
-                            <tr key={chat.id}>
-                                <td className='p-2 max-w-1/2 w-1/2 text-wrap'></td>
-                                <td className='p-2 max-w-1/2 w-1/2 text-wrap text-end'><span className="font-bold">user:</span> {chat.content}</td>
-                            </tr>
-                        ) : (
-                            <tr key={chat.id}>
-                                <td className='p-2 max-w-1/2 w-1/2 text-wrap'><span className="font-bold">assistant:</span> {chat.is_loading ? "loading..." : chat.content}</td>
-                                <td className='p-2 max-w-1/2 w-1/2 text-wrap'></td>
-                            </tr>
-                        )
+                        <ChatBubble
+                            sender={chat.role}
+                            key={chat.id}
+                            isLoading={chat.state === "loading"}
+                            isDone={chat.state === "done"}
+                            timestamp={chat.created_at}
+                            message={chat.content}
+                        />
                     ))}
-                </tbody>
-            </table>
-            <form className="w-1/2 flex fixed bottom-20" onSubmit={async (e) => {
-                e.preventDefault()
-                if (!user) return
-                const { error } = await supabase.from("chat").insert({
-                    role: "user",
-                    content: prompt,
-                    session_uid: sessionId
-                })
-                if (error) {
-                    console.error("Error inserting chat:", error)
-                    return
-                }
-                const { data } = await supabase.auth.getSession()
-                if (!data.session) {
-                    console.error("No session found")
-                    return
-                }
-                const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/chat`, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
+                </div>
+            </ScrollArea>
+            <form className="w-full lg:w-2/3 absolute bottom-20"
+                onSubmit={async (e) => {
+                    e.preventDefault()
+                    if (!user) return
+                    const { error } = await supabase.from("chat").insert({
+                        role: "user",
+                        content: prompt,
                         session_uid: sessionId,
                         user_uid: user.id,
-                        access_token: data.session?.access_token,
-                        refresh_token: data.session?.refresh_token,
-                        messages: [...chats.map((chat) => ({
-                            content: chat.content,
-                            role: chat.role,
-                            timestamp: chat.created_at
-                        })), {
-                            content: prompt,
-                            role: "user",
-                            timestamp: new Date().toISOString()
-                        }]
+                        state: "done"
                     })
-                })
-                const json = await res.json()
-                console.log("Response:", json)
-                setPrompt("")
-            }}>
-                <input className="border flex-1 border-black p-2" type="text" placeholder="Type your message..." value={prompt} onChange={(e) => setPrompt(e.target.value)} />
-                <button className="bg-gray-200 cursor-pointer p-2 border-black border" type="submit">Send</button>
+                    if (error) {
+                        console.error("Error inserting chat:", error)
+                        return
+                    }
+                    const { data } = await supabase.auth.getSession()
+                    if (!data.session) {
+                        console.error("No session found")
+                        return
+                    }
+                    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/chat`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            session_uid: sessionId,
+                            user_uid: user.id,
+                            access_token: data.session?.access_token,
+                            refresh_token: data.session?.refresh_token,
+                            messages: [...chats.map((chat) => ({
+                                content: chat.content,
+                                role: chat.role,
+                                timestamp: chat.created_at
+                            })), {
+                                content: prompt,
+                                role: "user",
+                                timestamp: new Date().toISOString()
+                            }]
+                        })
+                    })
+                    const json = await res.json()
+                    console.log("Response:", json)
+                    setPrompt("")
+                }}
+            >
+                <PromptInput
+                    value={prompt}
+                    onValueChange={(e) => setPrompt(e)}
+                    isLoading={isLoading}
+                >
+                    <PromptInputTextarea
+                        placeholder="Tanyakan pertanyaan Anda..."
+                        onKeyDown={(e) => {
+                            // Submit form when Enter is pressed without Shift key
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault(); // Prevent adding a new line
+                                // Find and submit the form
+                                e.currentTarget.closest('form')?.requestSubmit();
+                            }
+                        }}
+                    />
+                    <PromptInputActions className="justify-end pt-2">
+                        <PromptInputAction
+                            tooltip={isLoading ? "Stop generation" : "Send message"}
+                        >
+                            <Button
+                                variant="default"
+                                size="icon"
+                                type="submit"
+                                className="h-8 w-8 rounded-full bg-[#192f59]"
+                            >
+                                {isLoading ? (
+                                    <Square className="size-5 fill-current" />
+                                ) : (
+                                    <ArrowUp className="size-5" />
+                                )}
+                            </Button>
+                        </PromptInputAction>
+                    </PromptInputActions>
+                </PromptInput>
             </form>
         </div>
     )

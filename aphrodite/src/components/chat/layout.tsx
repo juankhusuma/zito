@@ -4,12 +4,16 @@ import { Outlet } from "react-router";
 
 export default function ChatLayout() {
     return (
-        <SidebarProvider>
-            <AppSidebar />
-            <main className="flex w-full border-t flex-col">
-                <SidebarTrigger />
-                <Outlet />
-            </main>
-        </SidebarProvider>
+        <div className="relative h-[calc(100svh-16rem)]">
+            <SidebarProvider>
+                <AppSidebar />
+                <main className="absolute flex w-full border-t flex-col">
+                    <SidebarTrigger className="mt-5 cursor-pointer ml-2" />
+                    <div className="w-full h-[calc(100svh-16rem)] relative">
+                        <Outlet />
+                    </div>
+                </main>
+            </SidebarProvider>
+        </div>
     )
 }

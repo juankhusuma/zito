@@ -12,14 +12,15 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
     SidebarMenuSkeleton,
+    SidebarSeparator,
+    SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { useAuth } from "@/hoc/AuthProvider"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { MessageSquare, MoreHorizontal, Trash2 } from "lucide-react"
+import { MoreHorizontal, Trash2 } from "lucide-react"
 import React, { useEffect } from "react"
-import { Tooltip, TooltipContent, TooltipProvider } from "../ui/tooltip"
-import { TooltipTrigger } from "@radix-ui/react-tooltip"
 import { useNavigate } from "react-router"
+import PrimaryButton from "../button"
 
 interface Session {
     id: string
@@ -129,8 +130,16 @@ export function AppSidebar() {
 
 
     return (
-        <Sidebar collapsible="icon" className="relative border-t">
-            <SidebarHeader />
+        <Sidebar collapsible="offcanvas" className="absolute border-t h-[calc(100svh-16rem)]">
+            <SidebarHeader >
+                <div className="flex items-center justify-between px-4 py-2">
+                    <PrimaryButton>
+                        <p className="text-sm font-bold">Add New Chat</p>
+                    </PrimaryButton>
+                    <SidebarTrigger className="cursor-pointer" />
+                </div>
+                <SidebarSeparator />
+            </SidebarHeader>
             <SidebarContent>
                 {
                     sidebarLoading && (
@@ -143,52 +152,42 @@ export function AppSidebar() {
                         </SidebarMenu>
                     )
                 }
-                <TooltipProvider>
-                    {
-                        !sidebarLoading && Object.entries(groups).filter((group) => {
-                            const sessions = groups[group[0]]
-                            return sessions.length > 0
-                        }).map(([group, sessions]) => (
-                            <SidebarGroup key={group}>
-                                <SidebarGroupLabel>{group}</SidebarGroupLabel>
-                                <SidebarGroupContent>
-                                    <SidebarMenu>
-                                        {sessions.map((session) => (
-                                            <SidebarMenuItem key={session.id} className="cursor-pointer">
-                                                <SidebarMenuButton asChild>
-                                                    <div onClick={() => navigate(session.id)} className="flex items-center text-slate-800 text-sm font-semibold">
-                                                        <Tooltip>
-                                                            <TooltipTrigger>
-                                                                <MessageSquare />
-                                                            </TooltipTrigger>
-                                                            <TooltipContent>
-                                                                <p>{session.title}</p>
-                                                            </TooltipContent>
-                                                        </Tooltip>
-                                                        <span>{session.title}</span>
-                                                    </div>
-                                                </SidebarMenuButton>
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild>
-                                                        <SidebarMenuAction>
-                                                            <MoreHorizontal />
-                                                        </SidebarMenuAction>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent side="right" align="start">
-                                                        <DropdownMenuItem className="text-xs text-[#192f59] font-medium cursor-pointer">
-                                                            <Trash2 />
-                                                            <span>Delete Project</span>
-                                                        </DropdownMenuItem>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
-                                            </SidebarMenuItem>
-                                        ))}
-                                    </SidebarMenu>
-                                </SidebarGroupContent>
-                            </SidebarGroup>
-                        ))
-                    }
-                </TooltipProvider>
+                {
+                    !sidebarLoading && Object.entries(groups).filter((group) => {
+                        const sessions = groups[group[0]]
+                        return sessions.length > 0
+                    }).map(([group, sessions]) => (
+                        <SidebarGroup key={group}>
+                            <SidebarGroupLabel>{group}</SidebarGroupLabel>
+                            <SidebarGroupContent>
+                                <SidebarMenu>
+                                    {sessions.map((session) => (
+                                        <SidebarMenuItem key={session.id} className="cursor-pointer">
+                                            <SidebarMenuButton asChild>
+                                                <div onClick={() => navigate(session.id)} className="flex items-center text-slate-800 text-sm font-semibold">
+                                                    <span>{session.title}</span>
+                                                </div>
+                                            </SidebarMenuButton>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <SidebarMenuAction>
+                                                        <MoreHorizontal />
+                                                    </SidebarMenuAction>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent side="right" align="start">
+                                                    <DropdownMenuItem className="text-xs text-[#192f59] font-medium cursor-pointer">
+                                                        <Trash2 />
+                                                        <span>Delete Project</span>
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </SidebarMenuItem>
+                                    ))}
+                                </SidebarMenu>
+                            </SidebarGroupContent>
+                        </SidebarGroup>
+                    ))
+                }
             </SidebarContent>
             <SidebarFooter />
         </Sidebar>

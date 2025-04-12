@@ -3,7 +3,7 @@ import PrimaryButton from "../components/button"
 
 export default function Home() {
     return (
-        <div className="flex flex-col items-center justify-center h-full">
+        <div className="flex flex-col items-center justify-center h-full pb-20">
             <div className='relative w-full h-[400px] z-0 flex items-center justify-center'>
                 <div className='absolute z-[100] bg-[#192f59d5] top-0 left-0 w-full h-full'></div>
                 <img className='absolute z-0 !w-full !h-full aspect-video object-cover object-center' src="/hukum.jpg" alt='law' />

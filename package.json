@@ -14,5 +14,8 @@
   },
   "pre-push": [
     "pre-push"
-  ]
+  ],
+  "devDependencies": {
+    "@tailwindcss/typography": "^0.5.16"
+  }
 }

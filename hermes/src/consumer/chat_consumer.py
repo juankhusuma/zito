@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 import aio_pika
 from src.common.gemini_client import client as gemini_client
-from src.common.supabase_client import get_client
+from src.common.supabase_client import client as supabase
 from dotenv import load_dotenv
 import os, io
 from google.genai import types
@@ -156,41 +156,48 @@ class ChatConsumer:
         await message.ack()
         body = json.loads(message.body.decode("utf-8"))
         history = ChatConsumer.__serialize_message(body["messages"])
-
-        supabase = await get_client()
         msg = ""
-        await supabase.auth.set_session(
+        supabase.auth.set_session(
             access_token=body["access_token"],
             refresh_token=body["refresh_token"],
         )
-        message_ref = await supabase.table("chat").insert({
+        message_ref = supabase.table("chat").insert({
             "role": "assistant",
             "content": "",
             "session_uid": body["session_uid"],
             "user_uid": body["user_uid"],
+            "state": "loading",
         }).execute()
     
         # try:
-        files = ChatConsumer.__handle_document_context("\n".join([m["parts"][0]["text"] for m in history[-5:] if m["role"] == "user"])) 
-        await supabase.table("chat").update({
-            "is_loading": False,
-        }).eq("id", message_ref.data[0]["id"]).execute()
+        # files = ChatConsumer.__handle_document_context("\n".join([m["parts"][0]["text"] for m in history[-5:] if m["role"] == "user"])) 
 
-        
         res = gemini_client.models.generate_content_stream(
             model=MODEL_NAME,
-            contents=(*files, *history),
+            # contents=(*files, *history),
+            contents=history,
             config=types.GenerateContentConfig(
-                system_instruction=CHATBOT_SYSTEM_PROMPT,
+                # system_instruction=CHATBOT_SYSTEM_PROMPT,
+                system_instruction="""
+                You are a friendly assistant that helps the user to answer their question
+                Answer in a friendly and informative way, use emojis if needed
+                """,
             ),
         )
         
-        for chunk in res:
+        for i, chunk in enumerate(res):
             msg += "".join([part.text for part in chunk.candidates[0].content.parts])
-            res = await supabase.table("chat").update({"content": msg}).eq("id", message_ref.data[0]["id"]).execute()
+            if i % 2 == 0:
+                supabase.table("chat").update({
+                    "content": msg,
+                    "state": "generating"
+                    }).eq("id", message_ref.data[0]["id"]).execute()
 
-
-        await supabase.from_("chat").update({"content": msg}).eq("id", message_ref.data[0]["id"]).execute()
+        supabase.table("chat").update({
+            "content": msg,
+            "state": "done",
+        }).eq("id", message_ref.data[0]["id"]).execute()
+        
         return {"status": "Message sent successfully"}
 
 
