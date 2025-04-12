@@ -50,7 +50,7 @@ export default function Session() {
             .subscribe((status) => {
                 console.log("Subscription status:", status)
             })
-    }, [user])
+    }, [user, sessionId])
 
     return (
         <div className='font-mono p-5 flex flex-col justify-center items-center'>

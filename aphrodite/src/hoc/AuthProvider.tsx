@@ -6,11 +6,13 @@ import { User } from "@supabase/supabase-js";
 interface AuthContextType {
     user: User | null;
     loading: boolean;
+    setLoading: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const AuthContext = createContext<AuthContextType>({
     user: null,
     loading: true,
+    setLoading: () => { },
 })
 
 export function useAuth() {
@@ -37,7 +39,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }, [])
 
     return (
-        <AuthContext.Provider value={{ user, loading }}>
+        <AuthContext.Provider value={{ user, loading, setLoading }}>
             {children}
         </AuthContext.Provider>
     )

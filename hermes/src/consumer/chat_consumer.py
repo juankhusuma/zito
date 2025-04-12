@@ -188,11 +188,7 @@ class ChatConsumer:
         for chunk in res:
             msg += "".join([part.text for part in chunk.candidates[0].content.parts])
             res = await supabase.table("chat").update({"content": msg}).eq("id", message_ref.data[0]["id"]).execute()
-        # except Exception as e:
-        #     await supabase.table("chat").update({
-        #         "has_error": True,
-        #         "has_finished": True,
-        #     }).eq("id", message_ref.data[0]["id"]).execute()
+
 
         await supabase.from_("chat").update({"content": msg}).eq("id", message_ref.data[0]["id"]).execute()
         return {"status": "Message sent successfully"}
