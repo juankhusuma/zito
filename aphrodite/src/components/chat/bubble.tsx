@@ -44,7 +44,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                     ) : (
                         props.sender === "user" ? (<p className="prose prose-sm">{text}</p>)
                             : (
-                                <div className="prose prose-sm max-w-full prose-pre:font-mono prose-code:font-mono">
+                                <div className="prose prose-headings:text-base prose-sm max-w-full prose-pre:font-mono prose-code:font-mono">
                                     <Markdown remarkPlugins={[remarkGfm]}>
                                         {text}
                                     </Markdown>

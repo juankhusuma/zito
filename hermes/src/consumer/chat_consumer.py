@@ -313,7 +313,7 @@ class ChatConsumer:
                 doc_id = filename.replace(".pdf", "")
                 
                 # Try primary source
-                response = await client.get(f"https://chat.lexin.cs.ui.ac.id/static/doc/{filename}")
+                response = await client.get(f"{os.getenv("FILE_SERVER_URL")}/static/doc/{filename}")
                 
                 if response.status_code != 200:
                     # Try alternate source
