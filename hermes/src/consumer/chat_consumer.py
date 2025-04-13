@@ -108,6 +108,9 @@ class ChatConsumer:
             files = await ChatConsumer.__process_queries_in_parallel(check_need_retrieval.queries[:3])
             print(f"Retrieved {len(files)} files for context enrichment")
             print(files)
+            supabase.table("chat").update({
+                "state": "extracting",
+            }).eq("id", message_ref.data[0]["id"]).execute()
         
         context = ""
         if len(files) > 0:
@@ -121,7 +124,6 @@ class ChatConsumer:
             context = res.candidates[0].content.parts[0].text
             supabase.table("chat").update({
                 "context": context,
-                "state": "extracting",
             }).eq("id", message_ref.data[0]["id"]).execute()
 
         if context != "":
