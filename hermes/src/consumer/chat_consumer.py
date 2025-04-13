@@ -243,8 +243,7 @@ class ChatConsumer:
                 
                 # Batch query all documents at once
                 query = text("""--sql
-                SELECT id, mengubah, diubah_oleh,
-                    mencabut, dicabut_oleh, melaksanakan_amanat_peraturan, dilaksanakan_oleh_peraturan_pelaksana
+                SELECT id, mengubah, dicabut_oleh, dilaksanakan_oleh_peraturan_pelaksana
                 FROM legal_documents WHERE id = ANY(:ids);
                 """)
                 
@@ -365,7 +364,7 @@ class ChatConsumer:
                 return None
         
         # Process files in larger batches with connection pooling
-        batch_size = 15  # Increased for more parallelism
+        batch_size = 50  # Increased for more parallelism
         total_start_time = datetime.now()
         
         # Create a single client for connection pooling
