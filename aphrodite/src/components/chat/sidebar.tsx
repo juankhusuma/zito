@@ -19,8 +19,11 @@ import { useAuth } from "@/hoc/AuthProvider"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { MoreHorizontal, Trash2 } from "lucide-react"
 import React, { useEffect } from "react"
-import { useNavigate } from "react-router"
+import { useNavigate, useParams } from "react-router"
 import PrimaryButton from "../button"
+import { cn } from "@/lib/utils"
+import { TooltipProvider, TooltipTrigger } from "@radix-ui/react-tooltip"
+import { Tooltip, TooltipContent } from "../ui/tooltip"
 
 interface Session {
     id: string
@@ -35,21 +38,63 @@ export function AppSidebar() {
     const navigate = useNavigate()
     const [groups, setGroups] = React.useState<{ [key: string]: Session[] }>({})
     const [sidebarLoading, setSidebarLoading] = React.useState(false)
+    const { sessionId } = useParams()
 
     useEffect(() => {
         setSidebarLoading(true)
         if (!loading && !user) {
             console.log("User not found, redirecting to login")
-            window.location.href = "/login"
+            window.location.href = "/login?next=/chat"
+            return;
         }
-        supabase.from("session").select("*").then(({ data, error }) => {
-            if (error) {
-                console.error("Error fetching sessions:", error)
-                return
+
+        // Fetch initial sessions
+        supabase.from("session").select("*")
+            .eq("user_uid", user?.id)
+            .then(({ data, error }) => {
+                if (error) {
+                    console.error("Error fetching sessions:", error)
+                    return
+                }
+                setSessions(data || [])
+                setSidebarLoading(false)
+            })
+
+        // Setup realtime subscription
+        const channel = supabase.realtime.channel(`session:${user?.id}`)
+            .on("postgres_changes", {
+                schema: "public",
+                table: "session",
+                event: "UPDATE",
+                filter: `user_uid=eq.${user?.id}`
+            }, (payload) => {
+                console.log("Updated session:", payload)
+                setSessions((prev) => prev.map((session) =>
+                    session.id === payload.new.id ? payload.new as Session : session)
+                )
+            })
+            .on("postgres_changes", {
+                schema: "public",
+                table: "session",
+                event: "INSERT",
+                filter: `user_uid=eq.${user?.id}`
+            }, (payload) => {
+                console.log("New session:", payload)
+                setSessions((prev) => [...prev, payload.new as Session])
+            })
+
+        channel.subscribe((status, err) => {
+            console.log("Realtime session status:", status)
+            if (err) {
+                console.error("Realtime session error:", err)
             }
-            setSessions(data)
         })
-        setSidebarLoading(false)
+
+        // Cleanup subscription when component unmounts
+        return () => {
+            console.log("Unsubscribing from realtime channel")
+            supabase.realtime.removeChannel(channel)
+        }
     }, [user, loading])
 
     useEffect(() => {
@@ -131,65 +176,97 @@ export function AppSidebar() {
 
     return (
         <Sidebar collapsible="offcanvas" className="absolute border-t h-[calc(100svh-16rem)]">
-            <SidebarHeader >
-                <div className="flex items-center justify-between px-4 py-2">
-                    <PrimaryButton>
-                        <p className="text-sm font-bold">Add New Chat</p>
-                    </PrimaryButton>
-                    <SidebarTrigger className="cursor-pointer" />
-                </div>
-                <SidebarSeparator />
-            </SidebarHeader>
-            <SidebarContent>
-                {
-                    sidebarLoading && (
-                        <SidebarMenu>
-                            {Array.from({ length: 20 }).map((_, index) => (
-                                <SidebarMenuItem key={index} className="pl-5">
-                                    <SidebarMenuSkeleton className="" />
-                                </SidebarMenuItem>
-                            ))}
-                        </SidebarMenu>
-                    )
-                }
-                {
-                    !sidebarLoading && Object.entries(groups).filter((group) => {
-                        const sessions = groups[group[0]]
-                        return sessions.length > 0
-                    }).map(([group, sessions]) => (
-                        <SidebarGroup key={group}>
-                            <SidebarGroupLabel>{group}</SidebarGroupLabel>
-                            <SidebarGroupContent>
-                                <SidebarMenu>
-                                    {sessions.map((session) => (
-                                        <SidebarMenuItem key={session.id} className="cursor-pointer">
-                                            <SidebarMenuButton asChild>
-                                                <div onClick={() => navigate(session.id)} className="flex items-center text-slate-800 text-sm font-semibold">
-                                                    <span>{session.title}</span>
-                                                </div>
-                                            </SidebarMenuButton>
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <SidebarMenuAction>
-                                                        <MoreHorizontal />
-                                                    </SidebarMenuAction>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent side="right" align="start">
-                                                    <DropdownMenuItem className="text-xs text-[#192f59] font-medium cursor-pointer">
-                                                        <Trash2 />
-                                                        <span>Delete Project</span>
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        </SidebarMenuItem>
-                                    ))}
-                                </SidebarMenu>
-                            </SidebarGroupContent>
-                        </SidebarGroup>
-                    ))
-                }
-            </SidebarContent>
-            <SidebarFooter />
+            <TooltipProvider>
+                <SidebarHeader >
+                    <div className="flex items-center justify-between gap-4 px-4 py-2">
+                        <PrimaryButton className="flex-1" onClick={() => {
+                            navigate("/chat")
+                        }}>
+                            <p className="text-sm text-center w-full font-bold">Add New Chat</p>
+                        </PrimaryButton>
+                        <SidebarTrigger className="cursor-pointer lg:hidden" />
+                    </div>
+                    <SidebarSeparator />
+                </SidebarHeader>
+                <SidebarContent>
+                    {
+                        sidebarLoading && (
+                            <SidebarMenu>
+                                {Array.from({ length: 20 }).map((_, index) => (
+                                    <SidebarMenuItem key={index} className="pl-5">
+                                        <SidebarMenuSkeleton className="" />
+                                    </SidebarMenuItem>
+                                ))}
+                            </SidebarMenu>
+                        )
+                    }
+                    {
+                        !sidebarLoading && Object.entries(groups).filter((group) => {
+                            const sessions = groups[group[0]]
+                            return sessions.length > 0
+                        }).map(([group, sessions]) => (
+                            <SidebarGroup key={group}>
+                                <SidebarGroupLabel>{group}</SidebarGroupLabel>
+                                <SidebarGroupContent>
+                                    <SidebarMenu>
+                                        {sessions.map((session) => (
+                                            <SidebarMenuItem key={session.id} className="cursor-pointer group/session">
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <span className="flex-1">
+                                                            <SidebarMenuButton asChild className="group-hover/session:visible">
+                                                                <div onClick={() => navigate(session.id)} className={cn("flex items-center text-slate-800 text-sm font-semibold",
+                                                                    sessionId === session.id && "bg-[#192f59] text-white"
+                                                                )}>
+                                                                    <span>{session.title}</span>
+                                                                </div>
+                                                            </SidebarMenuButton>
+                                                        </span>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>{session.title}</TooltipContent>
+                                                </Tooltip>
+
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <SidebarMenuAction>
+                                                            <MoreHorizontal className={cn(
+                                                                sessionId === session.id && "text-white group-hover/session:text-[#192f59] cursor-pointer"
+                                                            )} />
+                                                        </SidebarMenuAction>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent side="right" align="start">
+                                                        <DropdownMenuItem onClick={async () => {
+                                                            if (!user) return;
+                                                            const { error } = await supabase.from("session").delete().eq("id", session.id)
+                                                            if (error) {
+                                                                console.error("Error deleting session:", error)
+                                                            }
+                                                            if (sessionId === session.id) {
+                                                                navigate("/chat")
+                                                            }
+                                                            setSessions((prev) => prev.filter((s) => s.id !== session.id))
+                                                            setGroups((prev) => {
+                                                                const newGroups = { ...prev }
+                                                                const groupSessions = newGroups[group]
+                                                                newGroups[group] = groupSessions.filter((s) => s.id !== session.id)
+                                                                return newGroups
+                                                            })
+                                                        }} className="text-xs text-[#192f59] font-medium cursor-pointer">
+                                                            <Trash2 />
+                                                            <span>Delete Project</span>
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </SidebarMenuItem>
+                                        ))}
+                                    </SidebarMenu>
+                                </SidebarGroupContent>
+                            </SidebarGroup>
+                        ))
+                    }
+                </SidebarContent>
+                <SidebarFooter />
+            </TooltipProvider>
         </Sidebar>
     )
 }

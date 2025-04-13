@@ -19,7 +19,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
             <div className={cn("flex items-start w-full", props.sender === "user" ? "justify-end" : "justify-start")}>
                 {props.sender === "assistant" && <img src="/lexin-logo.svg" alt="lexin" className={cn(
                     "w-[20px] h-[20px] object-contain object-center mt-2",
-                    props.isDone || props.isLoading ? "animate-pulse" : ""
+                    !props.isDone || props.isLoading ? "animate-pulse" : ""
                 )} />}
                 <div
                     className={cn(
@@ -34,7 +34,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                     ) : (
                         props.sender === "user" ? (<p>{text}</p>)
                             : (
-                                <div className="prose prose-sm max-w-full">
+                                <div className="prose prose-sm max-w-full prose-pre:font-mono prose-code:font-mono">
                                     <Markdown remarkPlugins={[remarkGfm]}>
                                         {text}
                                     </Markdown>

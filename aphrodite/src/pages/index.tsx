@@ -11,7 +11,7 @@ export default function Home() {
                     <h1 className='font-bold text-4xl flex-wrap max-w-[50%]'>Legal Generative-AI Search</h1>
                     <div className='max-w-[50%]'>
                         <h1 className='font-semibold text-wrap text-left text-xl'> Buka wawasan hukum yang tak tertandingi dengan basis data hukum berbasis Generative-AI Search, di mana kecerdasan buatan modern bertemu dengan basis data hukum yang lengkap untuk merevolusi pengalaman riset hukum Anda.</h1>
-                        <a href="/search">
+                        <a href="/chat">
                             <PrimaryButton
                                 type='button'
                                 className='mt-8'

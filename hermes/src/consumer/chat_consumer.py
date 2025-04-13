@@ -7,6 +7,7 @@ import os, io
 from google.genai import types
 from ..config.llm import CHATBOT_SYSTEM_PROMPT, SEARCH_SYSTEM_PROMPT, MODEL_NAME
 from ..tools.search_legal_document import legal_document_search
+from datetime import datetime
 load_dotenv()
 import httpx
 import json
@@ -161,6 +162,11 @@ class ChatConsumer:
             access_token=body["access_token"],
             refresh_token=body["refresh_token"],
         )
+
+        supabase.table("session").update({
+            "last_updated_at": datetime.now().isoformat(),
+        }).eq("id", body["session_uid"]).execute()
+
         message_ref = supabase.table("chat").insert({
             "role": "assistant",
             "content": "",
@@ -197,7 +203,28 @@ class ChatConsumer:
             "content": msg,
             "state": "done",
         }).eq("id", message_ref.data[0]["id"]).execute()
-        
+
+        if len(history) == 1:
+            res = gemini_client.models.generate_content_stream(
+                model="gemini-2.0-flash-lite",
+                contents=history,
+                config=types.GenerateContentConfig(
+                    system_instruction="""
+                    A title for the chat session, given the context of the chat, 
+                    just a sentence with a few words will do.
+                    Focus on the content of the chat, and make it as short as possible.
+                    Instead of "Pembahasan isi UU No. 1 Tahun 2021", you can just say "UU No. 1 Tahun 2021: Pembahasan"
+                    """,
+                    max_output_tokens=500,
+                ),
+            )
+            title = ""
+            for chunk in res:
+                title += "".join([part.text for part in chunk.candidates[0].content.parts])
+            supabase.table("session").update({
+                "title": title,
+            }).eq("id", message_ref.data[0]["session_uid"]).execute()
+
         return {"status": "Message sent successfully"}
 
 

@@ -7,7 +7,7 @@ export default function ChatLayout() {
         <div className="relative h-[calc(100svh-16rem)]">
             <SidebarProvider>
                 <AppSidebar />
-                <main className="absolute flex w-full border-t flex-col">
+                <main className="lg:relative absolute flex w-full border-t flex-col">
                     <SidebarTrigger className="mt-5 cursor-pointer ml-2" />
                     <div className="w-full h-[calc(100svh-16rem)] relative">
                         <Outlet />

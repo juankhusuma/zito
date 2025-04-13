@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useMemo } from "react";
 import { useNavigate, useParams } from "react-router";
 import { useAuth } from "../../hoc/AuthProvider";
 import supabase from "../../common/supabase";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowUp, Square } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import ChatBubble from "@/components/chat/bubble";
+import { randomQuestions } from "@/utils/getRecommendation";
 
 interface Chat {
     id: string;
@@ -27,6 +28,56 @@ export default function Session() {
     const [prompt, setPrompt] = React.useState("")
     const scrollAreaRef = useRef<HTMLDivElement>(null)
 
+    const newSessionChat = async (question: string) => {
+        if (!user || !question || question.trim() === "") return
+        const { data: sessions, error: sessionCreateError } = await supabase.from("session").insert({
+            user_uid: user.id,
+            title: "Untitled Chat",
+        }).select()
+        if (sessionCreateError) {
+            console.error("Error creating session:", sessionCreateError)
+            return
+        }
+        const sessionId = sessions[0].id
+        const { data: chats, error: chatInsertError } = await supabase.from("chat").insert({
+            role: "user",
+            content: question,
+            session_uid: sessionId,
+            user_uid: user.id,
+            state: "done"
+        }).select()
+        if (chatInsertError) {
+            console.error("Error inserting chat:", chatInsertError)
+            return
+        }
+        const { data: authSessions } = await supabase.auth.getSession()
+        if (!authSessions.session) {
+            console.error("No session found")
+            return
+        }
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/chat`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                session_uid: sessionId,
+                user_uid: user.id,
+                access_token: authSessions.session?.access_token,
+                refresh_token: authSessions.session?.refresh_token,
+                messages: chats.map((chat) => ({
+                    content: chat.content,
+                    role: chat.role,
+                    timestamp: chat.created_at
+                }))
+            })
+        })
+        const json = await res.json()
+        console.log("Response:", json)
+        setPrompt("")
+        navigate(`/chat/${sessionId}`)
+    }
+
     const scrollToBottom = () => {
         if (scrollAreaRef.current) {
             const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
@@ -43,7 +94,7 @@ export default function Session() {
     useEffect(() => {
         if (!loading && !user) {
             console.log("User not found, redirecting to login")
-            navigate("/login")
+            navigate("/login?next=/chat")
         }
     }, [user, loading, navigate])
 
@@ -55,6 +106,15 @@ export default function Session() {
 
     useEffect(() => {
         if (!user) return
+        if (!sessionId) return setChats([{
+            id: "start",
+            content: "Halo! Selamat datang di **Lexin Chat!** Saya adalah **asisten virtual** Anda. Silakan ajukan **pertanyaan** atau beri tahu saya **apa yang dapat saya bantu**. Saya akan melakukan yang terbaik untuk **membantu** Anda. Mari kita mulai! 😊🙏",
+            role: "assistant",
+            created_at: new Date(0).toISOString(),
+            user_uid: user?.id || "",
+            session_uid: sessionId || "",
+            state: "generating"
+        }]);
         supabase.from("chat").select("*").eq("session_uid", sessionId).then(({ data, error }) => {
             if (error) {
                 console.error("Error fetching chats:", error)
@@ -64,7 +124,7 @@ export default function Session() {
             console.log("Fetched chats:", data)
         })
 
-        supabase.channel("chat")
+        supabase.channel(`chat::${user.id}::${sessionId}`)
             .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat", filter: `session_uid=eq.${sessionId}` }, (payload) => {
                 console.log("New chat:", payload)
                 setChats((prev) => [...prev, payload.new as Chat])
@@ -78,28 +138,33 @@ export default function Session() {
             })
     }, [user, sessionId])
 
+    const memoizedChatList = useMemo(() => {
+        return chats
+            .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+            .map((chat) => (
+                <ChatBubble
+                    sender={chat.role}
+                    key={chat.id}
+                    isLoading={chat.state === "loading"}
+                    isDone={chat.state === "done"}
+                    timestamp={chat.created_at}
+                    message={chat.content}
+                />
+            ));
+    }, [chats]);
+
     return (
         <div className='font-mono p-5 flex flex-col items-center justify-center'>
-            <ScrollArea ref={scrollAreaRef} className="h-[calc(100svh-30rem)] w-full lg:w-2/3 flex justify-center items-center lg:px-5">
+            <ScrollArea ref={scrollAreaRef} className="h-[calc(100svh-30rem)] w-full flex justify-center items-center lg:px-5">
                 <div className="w-full">
-                    {chats.sort((a, b) => (
-                        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-                    )).map((chat) => (
-                        <ChatBubble
-                            sender={chat.role}
-                            key={chat.id}
-                            isLoading={chat.state === "loading"}
-                            isDone={chat.state === "done"}
-                            timestamp={chat.created_at}
-                            message={chat.content}
-                        />
-                    ))}
+                    {memoizedChatList}
                 </div>
             </ScrollArea>
-            <form className="w-full lg:w-2/3 absolute bottom-20"
+            <form className="w-full px-10 absolute bottom-20"
                 onSubmit={async (e) => {
                     e.preventDefault()
                     if (!user) return
+                    if (!sessionId) return await newSessionChat(prompt);
                     const { error } = await supabase.from("chat").insert({
                         role: "user",
                         content: prompt,
@@ -142,6 +207,21 @@ export default function Session() {
                     setPrompt("")
                 }}
             >
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 mb-4">
+                    {!sessionId && randomQuestions.map((question => (
+                        <Button
+                            key={question}
+                            variant="outline"
+                            className="w-full py-5 cursor-pointer border-[#192f59] text-[#192f59] hover:bg-[#192f59] hover:text-white"
+                            onClick={async () => {
+                                await newSessionChat(question)
+                                scrollToBottom()
+                            }}
+                        >
+                            <p className="lowercase text-wrap text-sm">{question}</p>
+                        </Button>
+                    )))}
+                </div>
                 <PromptInput
                     value={prompt}
                     onValueChange={(e) => setPrompt(e)}

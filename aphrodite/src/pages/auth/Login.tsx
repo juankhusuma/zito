@@ -1,17 +1,19 @@
-import React from "react"
+import React, { useMemo } from "react"
 import supabase from "../../common/supabase"
-import { useNavigate } from "react-router"
+import { useLocation, useNavigate } from "react-router"
 import PrimaryButton from "@/components/button"
 import { Icon } from "@iconify/react/dist/iconify.js"
 import { useAuth } from "@/hoc/AuthProvider"
 
 export default function Login() {
     const [email, setEmail] = React.useState("")
+    const { search } = useLocation();
     const [password, setPassword] = React.useState("")
     const [reveal, setReveal] = React.useState<boolean>(false)
     const { loading, setLoading } = useAuth()
     const [isError, setIsError] = React.useState<boolean>(false)
     const [errorMessage, setErrorMessage] = React.useState<string>("")
+    const query = useMemo(() => new URLSearchParams(search), [search]);
 
     const navigate = useNavigate()
 
@@ -30,7 +32,8 @@ export default function Login() {
                 return
             }
             setLoading(false)
-            navigate("/")
+            console.log(query.get("next"))
+            navigate(query.get("next") || "/")
         }}>
             <div className="bg-[#FFFFFF] py-10 px-6 flex flex-col items-center rounded-sm border shadow-xl w-[600px] translate-y-12">
                 <div className="flex flex-col items-center">
