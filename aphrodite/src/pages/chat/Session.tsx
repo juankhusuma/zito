@@ -16,7 +16,8 @@ interface Chat {
     created_at: string;
     user_uid: string;
     session_uid: string;
-    state: "done" | "loading" | "error" | "generating";
+    context?: string;
+    state: "done" | "loading" | "error" | "generating" | "searching" | "extracting";
 }
 
 export default function Session() {
@@ -66,7 +67,11 @@ export default function Session() {
                 access_token: authSessions.session?.access_token,
                 refresh_token: authSessions.session?.refresh_token,
                 messages: chats.map((chat) => ({
-                    content: chat.content,
+                    content: chat.context ? `
+                    <context>
+                    ${chat.context}
+                    </context>\n\n
+                    ` : "" + chat.content,
                     role: chat.role,
                     timestamp: chat.created_at
                 }))
@@ -147,6 +152,8 @@ export default function Session() {
                     key={chat.id}
                     isLoading={chat.state === "loading"}
                     isDone={chat.state === "done"}
+                    isSearching={chat.state === "searching"}
+                    isExtracting={chat.state === "extracting"}
                     timestamp={chat.created_at}
                     message={chat.content}
                 />
@@ -154,7 +161,7 @@ export default function Session() {
     }, [chats]);
 
     return (
-        <div className='font-mono p-5 flex flex-col items-center justify-center'>
+        <div className='p-5 flex flex-col items-center justify-center'>
             <ScrollArea ref={scrollAreaRef} className="h-[calc(100svh-30rem)] w-full flex justify-center items-center lg:px-5">
                 <div className="w-full">
                     {memoizedChatList}

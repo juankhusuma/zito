@@ -3,17 +3,27 @@ import { UserCircle2 } from "lucide-react";
 import { useAnimatedText } from "../ui/animated-text";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { TextShimmerWave } from "./shimmer";
 
 interface ChatBubbleProps {
     sender: "user" | "assistant";
     timestamp: string;
     isLoading?: boolean;
+    isSearching?: boolean;
+    isExtracting?: boolean;
     isDone?: boolean;
     message: string;
 }
 
 export default function ChatBubble(props: ChatBubbleProps) {
     const text = (props.sender === "user" || props.isDone) ? props.message : useAnimatedText(props.message);
+    let state = "loading";
+    if (props.isSearching) {
+        state = "searching";
+    }
+    if (props.isExtracting) {
+        state = "extracting";
+    }
     return (
         <div className={cn("flex mb-3 text-xs lg:text-sm", props.sender === "user" ? "flex-row" : "flex-row-reverse")}>
             <div className={cn("flex items-start w-full", props.sender === "user" ? "justify-end" : "justify-start")}>
@@ -27,12 +37,12 @@ export default function ChatBubble(props: ChatBubbleProps) {
                         props.sender === "assistant" ? "text-primary-foreground ml-2" : "bg-muted border-1 mr-2 max-w-1/2"
                     )}
                 >
-                    {props.isLoading ? (
+                    {(props.isLoading || props.isExtracting || props.isSearching) ? (
                         <div className="flex items-center space-x-2">
-                            <MessageLoading />
+                            <MessageLoading state={state} />
                         </div>
                     ) : (
-                        props.sender === "user" ? (<p>{text}</p>)
+                        props.sender === "user" ? (<p className="prose prose-sm">{text}</p>)
                             : (
                                 <div className="prose prose-sm max-w-full prose-pre:font-mono prose-code:font-mono">
                                     <Markdown remarkPlugins={[remarkGfm]}>
@@ -48,7 +58,36 @@ export default function ChatBubble(props: ChatBubbleProps) {
     )
 }
 
-function MessageLoading() {
+function MessageLoading({ state }: {
+    state: string
+}) {
+    if (state === "searching") return (
+        <TextShimmerWave
+            className='[--base-color:#0f5a9c] [--base-gradient-color:#192f59] text-sm'
+            duration={0.75}
+            spread={1}
+            zDistance={1}
+            scaleDistance={1.01}
+            rotateYDistance={10}
+        >
+            Mencari Undang-Undang dan Peraturan yang relevan...
+        </TextShimmerWave>
+    )
+
+
+    if (state === "extracting") return (
+        <TextShimmerWave
+            className='[--base-color:#0f5a9c] [--base-gradient-color:#192f59] text-sm'
+            duration={0.75}
+            spread={1}
+            zDistance={1}
+            scaleDistance={1.01}
+            rotateYDistance={10}
+        >
+            Menganalisa hasil pencarian...
+        </TextShimmerWave>
+    )
+
     return (
         <svg
             width="24"
