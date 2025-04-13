@@ -13,7 +13,7 @@ interface ButtonProps {
 export default function PrimaryButton({ onClick = () => { }, isLoading = false, type = "button", className, disabled, fullWidth, children }: ButtonProps) {
     return (
         <button
-            className={`disabled:cursor-default cursor-pointer disabled:bg-[#d61b24cb] hover:bg-[#d61b24cb] flex flex-row items-center bg-[#d61b23] font-semibold text-white text-md py-3 px-6 rounded-sm ${fullWidth ? 'w-full' : 'min-w-14'} ${className}`}
+            className={`disabled:cursor-default cursor-pointer disabled:bg-[#d61b24cb] hover:bg-[#d61b24cb] flex flex-row items-center bg-[#d61b23] font-semibold text-white py-3 px-6 rounded-sm ${fullWidth ? 'w-full' : 'min-w-14'} ${className}`}
             type={type}
             onClick={onClick}
             disabled={disabled || isLoading}

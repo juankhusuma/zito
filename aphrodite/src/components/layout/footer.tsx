@@ -1,7 +1,7 @@
 export default function Footer() {
     return (
         <footer className="z-[100] relative overflow-hidden">
-            <div className="bg-[#181818] py-20 px-32 flex justify-center gap-10">
+            <div className="bg-[#181818] py-10 lg:py-20 px-10 flex-col lg:flex-row lg:px-32 flex justify-center gap-10">
                 <div>
                     <img src="/logo-lexin-white.png" alt="lexin" width="400px" height="113px" />
                 </div>
@@ -25,7 +25,7 @@ export default function Footer() {
                     </div>
                 </div>
             </div>
-            <div className="bg-[#202020] px-32 pt-10 pb-11">
+            <div className="bg-[#202020] px-10 lg:px-32 pt-3 lg:pt-10 pb-4 lg:pb-11">
                 <p className="text-[#6b6b6b]">Copyright All Rights Reserved 2024 - Lexin</p>
             </div>
         </footer>
