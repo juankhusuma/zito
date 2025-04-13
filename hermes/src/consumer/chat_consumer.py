@@ -370,7 +370,7 @@ class ChatConsumer:
         
         # Create a single client for connection pooling
         limits = httpx.Limits(max_keepalive_connections=20, max_connections=30)
-        async with httpx.AsyncClient(limits=limits, timeout=300) as client:
+        async with httpx.AsyncClient(limits=limits, timeout=5) as client:
             for i in range(0, len(remaining_files), batch_size):
                 batch_start_time = datetime.now()
                 batch = remaining_files[i:i + batch_size]
