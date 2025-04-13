@@ -114,17 +114,18 @@ class ChatConsumer:
         
         context = ""
         if len(files) > 0:
-            res = gemini_client.models.generate_content(
+            res = gemini_client.models.generate_content_stream(
                 model="gemini-2.0-flash-lite",
                 contents=files + history,
                 config=types.GenerateContentConfig(
                     system_instruction=EXTRACT_SYSTEM_PROMPT,
                 ),
             )
-            context = res.candidates[0].content.parts[0].text
-            supabase.table("chat").update({
-                "context": context,
-            }).eq("id", message_ref.data[0]["id"]).execute()
+            for chunk in res:
+                context += "".join([part.text for part in chunk.candidates[0].content.parts])
+                supabase.table("chat").update({
+                    "context": context,
+                }).eq("id", message_ref.data[0]["id"]).execute()
 
         if context != "":
             print(f"Context extracted: {context}")
