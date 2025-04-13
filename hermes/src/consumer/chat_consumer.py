@@ -14,6 +14,8 @@ import json
 import re
 from pydantic import BaseModel
 import asyncio
+from collections import defaultdict
+import time
 
 class CheckMessage(BaseModel):
     need_retrieval: bool
@@ -183,63 +185,32 @@ class ChatConsumer:
     @staticmethod
     async def __process_queries_in_parallel(queries: list[str]) -> list[types.File]:
         """Process all retrieval queries in parallel to get relevant documents"""
-        # from src.common.ollama_client import infer
-        # from src.common.pinecone_client import index
         import httpx
         import asyncio
+        from collections import defaultdict
+        import time
         
         print("Starting parallel document retrieval process...")
-        
-        # Step 1: Generate embeddings for all queries in parallel
-        # async def embed_query(query: str):
-        #     try:
-        #         embedding = infer.embed(input=query, model="bge-m3").embeddings[0]
-        #         return {"query": query, "embedding": embedding}
-        #     except Exception as e:
-        #         print(f"Error embedding query '{query}': {str(e)}")
-        #         return {"query": query, "embedding": None}
-        
-        # embed_tasks = [embed_query(query) for query in queries]
-        # embeddings_results = await asyncio.gather(*embed_tasks)
-        # valid_embeddings = [r for r in embeddings_results if r["embedding"] is not None]
+        start_time = time.time()
         
         # Step 2: Query vector DB and perform sparse search in parallel
         document_ids = set()
         
-        # Vector search function
-        # async def vector_search(query_data):
-        #     try:
-        #         query, embedding = query_data["query"], query_data["embedding"]
-        #         if embedding is None:
-        #             return []
-                
-        #         results = index.query(
-        #             vector=embedding,
-        #             top_k=3,
-        #             include_metadata=True
-        #         )
-        #         doc_ids = [match['id'] for match in results['matches']]
-        #         print(f"Vector search for '{query}' returned: {doc_ids}")
-        #         return doc_ids
-        #     except Exception as e:
-        #         print(f"Error in vector search for '{query_data['query']}': {str(e)}")
-        #         return []
-        
-        # Sparse search function
+        # Optimized sparse search function with better SQL query
         async def sparse_search(query: str):
             try:
                 from sqlalchemy import text
                 from ..common.postgres import db
                 
-                # Execute SQL query directly for sparse search
+                # Improved SQL query with better ranking and limit
                 sparse_results = db.execute(
                     text("""--sql
                     SELECT DISTINCT chunk.document_id,
-                    ts_rank_cd(chunk.full_text_search, plainto_tsquery('indonesian', :query)) AS rank
+                    ts_rank_cd(chunk.full_text_search, plainto_tsquery('indonesian', :query), 1) AS rank
                     FROM legal_document_pages AS chunk
                     WHERE chunk.full_text_search @@ plainto_tsquery('indonesian', :query)
                     ORDER BY rank DESC
-                    LIMIT 3;
+                    LIMIT 5;
                     """), parameters={"query": query}
                 ).fetchall()
                 
@@ -251,12 +222,8 @@ class ChatConsumer:
                 return []
         
         # Run all searches in parallel
-        # vector_tasks = [vector_search(embedding) for embedding in valid_embeddings]
         sparse_tasks = [sparse_search(query) for query in queries]
-        
-        # all_search_tasks = vector_tasks + sparse_tasks
-        all_search_tasks = sparse_tasks
-        all_search_results = await asyncio.gather(*all_search_tasks)
+        all_search_results = await asyncio.gather(*sparse_tasks)
         
         # Combine and dedupe results
         for result_list in all_search_results:
@@ -265,23 +232,31 @@ class ChatConsumer:
         
         print(f"Combined search returned {len(document_ids)} unique documents")
         
-        # Step 3: Get metadata and extract references
-        async def get_document_metadata(doc_id: str):
+        # Step 3: Get metadata and extract references - optimized batch query
+        async def get_document_metadata_batch(doc_ids):
             try:
                 from sqlalchemy import text
                 from ..common.postgres import db
                 
-                metadata = db.execute(
-                    text("""--sql
-                    SELECT mengubah, diubah_oleh,
-                        mencabut, dicabut_oleh, melaksanakan_amanat_peraturan, dilaksanakan_oleh_peraturan_pelaksana
-                    FROM legal_documents WHERE id = :id;
-                    """), parameters={"id": doc_id}
-                ).fetchone()
+                if not doc_ids:
+                    return {}
                 
-                ref_ids = []
-                if metadata:
-                    for field in metadata:
+                # Batch query all documents at once
+                query = text("""--sql
+                SELECT id, mengubah, diubah_oleh,
+                    mencabut, dicabut_oleh, melaksanakan_amanat_peraturan, dilaksanakan_oleh_peraturan_pelaksana
+                FROM legal_documents WHERE id = ANY(:ids);
+                """)
+                
+                results = db.execute(query, parameters={"ids": list(doc_ids)}).fetchall()
+                
+                ref_ids_by_doc = defaultdict(list)
+                for row in results:
+                    doc_id = row[0]
+                    ref_ids = []
+                    
+                    # Process each metadata field
+                    for field in row[1:]:
                         if not field:
                             continue
                             
@@ -291,62 +266,77 @@ class ChatConsumer:
                                     ref_ids.append(item['ref'])
                         elif isinstance(field, dict) and 'ref' in field:
                             ref_ids.append(field['ref'])
+                    
+                    ref_ids_by_doc[doc_id] = ref_ids
                 
-                return ref_ids
+                return ref_ids_by_doc
             except Exception as e:
-                print(f"Error getting metadata for document {doc_id}: {str(e)}")
-                return []
+                print(f"Error getting metadata for documents: {str(e)}")
+                return {}
         
-        metadata_tasks = [get_document_metadata(doc_id) for doc_id in document_ids]
-        metadata_results = await asyncio.gather(*metadata_tasks)
+        # Get all metadata in one batch query
+        metadata_results = await get_document_metadata_batch(document_ids)
         
         # Add reference document IDs
-        for refs in metadata_results:
+        for doc_id, refs in metadata_results.items():
             for ref in refs:
                 document_ids.add(ref)
         
         print(f"After metadata references, have {len(document_ids)} unique documents")
         document_filenames = [f"{doc_id}.pdf" for doc_id in document_ids]
         
-        # Step 4: Download documents in parallel
-        existing_files = [f.display_name for f in gemini_client.files.list()]
+        # Step 4: Download documents in parallel with improved caching
         
-        async def download_and_upload_document(filename: str):
+        # Pre-fetch the list of existing files once
+        existing_files = {}
+        for f in gemini_client.files.list():
+            existing_files[f.display_name] = f
+        
+        print(f"Found {len(existing_files)} existing files in Gemini")
+        
+        # First pass: collect all already uploaded files
+        all_files = []
+        remaining_files = []
+        
+        for filename in document_filenames:
+            if filename in existing_files:
+                all_files.append(existing_files[filename])
+                print(f"Using cached file: {filename}")
+            else:
+                remaining_files.append(filename)
+        
+        print(f"Using {len(all_files)} cached files, need to download {len(remaining_files)}")
+        
+        # Optimized download function with connection reuse
+        async def download_and_upload_document(filename: str, client: httpx.AsyncClient):
             try:
-                # Skip if already in Gemini
-                if filename in existing_files:
-                    file_obj = next((f for f in gemini_client.files.list() if f.display_name == filename), None)
-                    if file_obj:
-                        print(f"Using existing file: {filename}")
-                        return file_obj
+                doc_id = filename.replace(".pdf", "")
                 
                 # Try primary source
-                async with httpx.AsyncClient() as client:
-                    response = await client.get(f"https://chat.lexin.cs.ui.ac.id/static/doc/{filename}", timeout=10.0)
+                response = await client.get(f"https://chat.lexin.cs.ui.ac.id/static/doc/{filename}")
+                
+                if response.status_code != 200:
+                    # Try alternate source
+                    alt_response = await client.get(f"https://peraturan.go.id/id/{doc_id}")
                     
-                    if response.status_code != 200:
-                        # Try alternate source
-                        doc_id = filename.replace(".pdf", "")
-                        alt_response = await client.get(f"https://peraturan.go.id/id/{doc_id}", timeout=10.0)
+                    if alt_response.status_code != 200:
+                        print(f"Failed to download {filename} from both sources")
+                        return None
                         
-                        if alt_response.status_code != 200:
-                            print(f"Failed to download {filename} from both sources")
-                            return None
-                            
-                        # Extract PDF links from alternate source
-                        pattern = re.compile(r"/([^/]+\.pdf)")
-                        for pdf_name in re.findall(pattern, alt_response.content.decode("utf-8")):
-                            pdf_link = f"https://peraturan.go.id/files/{pdf_name}"
-                            pdf_response = await client.get(pdf_link, timeout=10.0)
-                            
-                            if pdf_response.status_code == 200:
-                                content = pdf_response.content
-                                break
-                        else:
-                            print(f"No valid PDFs found for {filename}")
-                            return None
+                    # Extract PDF links from alternate source
+                    pattern = re.compile(r"/([^/]+\.pdf)")
+                    for pdf_name in re.findall(pattern, alt_response.content.decode("utf-8")):
+                        pdf_link = f"https://peraturan.go.id/files/{pdf_name}"
+                        pdf_response = await client.get(pdf_link)
+                        
+                        if pdf_response.status_code == 200:
+                            content = pdf_response.content
+                            break
                     else:
-                        content = response.content
+                        print(f"No valid PDFs found for {filename}")
+                        return None
+                else:
+                    content = response.content
                 
                 # Check file size
                 if len(content) < 100:
@@ -364,7 +354,7 @@ class ChatConsumer:
                     )
                 )
                 upload_time = (datetime.now() - start_time).total_seconds()
-                print(f"Successfully uploaded {filename} ({len(content)} bytes) in {upload_time:.2f}s")
+                print(f"Uploaded {filename} ({len(content)} bytes) in {upload_time:.2f}s")
                 return file
                 
             except httpx.TimeoutException:
@@ -374,39 +364,31 @@ class ChatConsumer:
                 print(f"Error processing {filename}: {str(e)}")
                 return None
         
-        # Process files in batches to avoid overwhelming the system
-        batch_size = 10  # Increased from 5
-        all_files = []
+        # Process files in larger batches with connection pooling
+        batch_size = 15  # Increased for more parallelism
         total_start_time = datetime.now()
         
-        # Create connection pool for reuse
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            for i in range(0, len(document_filenames), batch_size):
+        # Create a single client for connection pooling
+        limits = httpx.Limits(max_keepalive_connections=20, max_connections=30)
+        async with httpx.AsyncClient(limits=limits, timeout=300) as client:
+            for i in range(0, len(remaining_files), batch_size):
                 batch_start_time = datetime.now()
-                batch = document_filenames[i:i + batch_size]
-                print(f"Processing batch {i//batch_size + 1}/{(len(document_filenames) + batch_size - 1)//batch_size}: {len(batch)} files")
+                batch = remaining_files[i:i + batch_size]
+                print(f"Processing batch {i//batch_size + 1}/{(len(remaining_files) + batch_size - 1)//batch_size}: {len(batch)} files")
                 
-                # First try existing files to avoid unnecessary downloads
-                existing_batch = [f for f in batch if f in existing_files]
-                if existing_batch:
-                    print(f"Found {len(existing_batch)} already uploaded files in batch")
-                    for filename in existing_batch:
-                        file_obj = next((f for f in gemini_client.files.list() if f.display_name == filename), None)
-                        if file_obj:
-                            all_files.append(file_obj)
-                            batch.remove(filename)
-                
-                if batch:  # Only process remaining files that need downloading
-                    batch_tasks = [download_and_upload_document(filename) for filename in batch]
-                    batch_results = await asyncio.gather(*batch_tasks)
-                    valid_files = [f for f in batch_results if f is not None]
-                    all_files.extend(valid_files)
+                # Process batch with shared client
+                batch_tasks = [download_and_upload_document(filename, client) for filename in batch]
+                batch_results = await asyncio.gather(*batch_tasks)
+                valid_files = [f for f in batch_results if f is not None]
+                all_files.extend(valid_files)
                 
                 batch_time = (datetime.now() - batch_start_time).total_seconds()
-                print(f"Batch processed in {batch_time:.2f}s, valid files so far: {len(all_files)}/{len(document_filenames)}")
+                print(f"Batch processed in {batch_time:.2f}s, got {len(valid_files)}/{len(batch)} valid files")
         
         total_time = (datetime.now() - total_start_time).total_seconds()
+        overall_time = time.time() - start_time
         print(f"Document processing complete: {len(all_files)}/{len(document_filenames)} files in {total_time:.2f}s")
+        print(f"Total retrieval process time: {overall_time:.2f}s")
         return all_files
 
 
