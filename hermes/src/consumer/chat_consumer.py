@@ -183,47 +183,47 @@ class ChatConsumer:
     @staticmethod
     async def __process_queries_in_parallel(queries: list[str]) -> list[types.File]:
         """Process all retrieval queries in parallel to get relevant documents"""
-        from src.common.ollama_client import infer
-        from src.common.pinecone_client import index
+        # from src.common.ollama_client import infer
+        # from src.common.pinecone_client import index
         import httpx
         import asyncio
         
         print("Starting parallel document retrieval process...")
         
         # Step 1: Generate embeddings for all queries in parallel
-        async def embed_query(query: str):
-            try:
-                embedding = infer.embed(input=query, model="bge-m3").embeddings[0]
-                return {"query": query, "embedding": embedding}
-            except Exception as e:
-                print(f"Error embedding query '{query}': {str(e)}")
-                return {"query": query, "embedding": None}
+        # async def embed_query(query: str):
+        #     try:
+        #         embedding = infer.embed(input=query, model="bge-m3").embeddings[0]
+        #         return {"query": query, "embedding": embedding}
+        #     except Exception as e:
+        #         print(f"Error embedding query '{query}': {str(e)}")
+        #         return {"query": query, "embedding": None}
         
-        embed_tasks = [embed_query(query) for query in queries]
-        embeddings_results = await asyncio.gather(*embed_tasks)
-        valid_embeddings = [r for r in embeddings_results if r["embedding"] is not None]
+        # embed_tasks = [embed_query(query) for query in queries]
+        # embeddings_results = await asyncio.gather(*embed_tasks)
+        # valid_embeddings = [r for r in embeddings_results if r["embedding"] is not None]
         
         # Step 2: Query vector DB and perform sparse search in parallel
         document_ids = set()
         
         # Vector search function
-        async def vector_search(query_data):
-            try:
-                query, embedding = query_data["query"], query_data["embedding"]
-                if embedding is None:
-                    return []
+        # async def vector_search(query_data):
+        #     try:
+        #         query, embedding = query_data["query"], query_data["embedding"]
+        #         if embedding is None:
+        #             return []
                 
-                results = index.query(
-                    vector=embedding,
-                    top_k=3,
-                    include_metadata=True
-                )
-                doc_ids = [match['id'] for match in results['matches']]
-                print(f"Vector search for '{query}' returned: {doc_ids}")
-                return doc_ids
-            except Exception as e:
-                print(f"Error in vector search for '{query_data['query']}': {str(e)}")
-                return []
+        #         results = index.query(
+        #             vector=embedding,
+        #             top_k=3,
+        #             include_metadata=True
+        #         )
+        #         doc_ids = [match['id'] for match in results['matches']]
+        #         print(f"Vector search for '{query}' returned: {doc_ids}")
+        #         return doc_ids
+        #     except Exception as e:
+        #         print(f"Error in vector search for '{query_data['query']}': {str(e)}")
+        #         return []
         
         # Sparse search function
         async def sparse_search(query: str):
@@ -251,10 +251,11 @@ class ChatConsumer:
                 return []
         
         # Run all searches in parallel
-        vector_tasks = [vector_search(embedding) for embedding in valid_embeddings]
+        # vector_tasks = [vector_search(embedding) for embedding in valid_embeddings]
         sparse_tasks = [sparse_search(query) for query in queries]
         
-        all_search_tasks = vector_tasks + sparse_tasks
+        # all_search_tasks = vector_tasks + sparse_tasks
+        all_search_tasks = sparse_tasks
         all_search_results = await asyncio.gather(*all_search_tasks)
         
         # Combine and dedupe results
