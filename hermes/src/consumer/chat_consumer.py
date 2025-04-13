@@ -115,7 +115,7 @@ class ChatConsumer:
         context = ""
         if len(files) > 0:
             res = gemini_client.models.generate_content(
-                model=MODEL_NAME,
+                model="gemini-2.0-flash-lite",
                 contents=files + history,
                 config=types.GenerateContentConfig(
                     system_instruction=EXTRACT_SYSTEM_PROMPT,
