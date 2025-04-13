@@ -13,6 +13,7 @@ interface ChatBubbleProps {
     isExtracting?: boolean;
     isDone?: boolean;
     message: string;
+    context?: string;
 }
 
 export default function ChatBubble(props: ChatBubbleProps) {
@@ -40,6 +41,13 @@ export default function ChatBubble(props: ChatBubbleProps) {
                     {(props.isLoading || props.isExtracting || props.isSearching) ? (
                         <div className="flex items-center space-x-2">
                             <MessageLoading state={state} />
+                            {(props.isExtracting && props.context) && (
+                                <div className="prose prose-headings:text-base prose-sm max-w-full prose-pre:font-mono prose-code:font-mono">
+                                    <Markdown remarkPlugins={[remarkGfm]}>
+                                        {text.split("\n").map((line) => "> " + line).join("\n")}
+                                    </Markdown>
+                                </div>
+                            )}
                         </div>
                     ) : (
                         props.sender === "user" ? (<p className="prose prose-sm">{text}</p>)
