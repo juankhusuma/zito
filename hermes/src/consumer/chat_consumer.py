@@ -121,12 +121,13 @@ class ChatConsumer:
                     system_instruction=EXTRACT_SYSTEM_PROMPT,
                 ),
             )
-            for chunk in res:
+            for i, chunk in enumerate(res):
                 context += "".join([part.text for part in chunk.candidates[0].content.parts])
                 print(f"Context chunk: {context}")
-                supabase.table("chat").update({
-                    "context": context,
-                }).eq("id", message_ref.data[0]["id"]).execute()
+                if i % 2 == 0:
+                    supabase.table("chat").update({
+                        "context": context,
+                    }).eq("id", message_ref.data[0]["id"]).execute()
 
         if context != "":
             print(f"Context extracted: {context}")
@@ -214,7 +215,7 @@ class ChatConsumer:
                     FROM legal_document_pages AS chunk
                     WHERE chunk.full_text_search @@ plainto_tsquery('indonesian', :query)
                     ORDER BY rank DESC
-                    LIMIT 5;
+                    LIMIT 3;
                     """), parameters={"query": query}
                 ).fetchall()
                 

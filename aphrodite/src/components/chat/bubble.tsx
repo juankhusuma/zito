@@ -18,6 +18,7 @@ interface ChatBubbleProps {
 
 export default function ChatBubble(props: ChatBubbleProps) {
     const text = (props.sender === "user" || props.isDone) ? props.message : useAnimatedText(props.message);
+    const context = (props.sender === "user" || props.isDone) ? props.context : useAnimatedText(props.context || "", "\n");
     let state = "loading";
     if (props.isSearching) {
         state = "searching";
@@ -38,24 +39,29 @@ export default function ChatBubble(props: ChatBubbleProps) {
                         props.sender === "assistant" ? "text-primary-foreground ml-2" : "bg-muted border-1 mr-2 max-w-1/2"
                     )}
                 >
-                    {(props.isLoading || props.isExtracting || props.isSearching) ? (
+                    {(props.isLoading || props.isSearching) ? (
                         <div className="flex items-center space-x-2">
                             <MessageLoading state={state} />
-                            {(props.isExtracting && props.context) && (
-                                <div className="prose prose-headings:text-base prose-sm max-w-full prose-pre:font-mono prose-code:font-mono">
-                                    <Markdown remarkPlugins={[remarkGfm]}>
-                                        {text.split("\n").map((line) => "> " + line).join("\n")}
-                                    </Markdown>
-                                </div>
-                            )}
                         </div>
                     ) : (
                         props.sender === "user" ? (<p className="prose prose-sm">{text}</p>)
                             : (
-                                <div className="prose prose-headings:text-base prose-sm max-w-full prose-pre:font-mono prose-code:font-mono">
-                                    <Markdown remarkPlugins={[remarkGfm]}>
-                                        {text}
-                                    </Markdown>
+                                <div>
+                                    {(props.isExtracting) && (
+                                        <MessageLoading state={state} />
+                                    )}
+                                    {(props.context) && (
+                                        <div className="prose opacity-40 prose-headings:text-base prose-sm max-w-full prose-pre:font-mono prose-code:font-mono">
+                                            <Markdown remarkPlugins={[remarkGfm]}>
+                                                {context?.split("\n").map((line) => "> " + line.replace("```", "")).join("\n")}
+                                            </Markdown>
+                                        </div>
+                                    )}
+                                    <div className="prose prose-headings:text-base prose-sm max-w-full prose-pre:font-mono prose-code:font-mono">
+                                        <Markdown remarkPlugins={[remarkGfm]}>
+                                            {text}
+                                        </Markdown>
+                                    </div>
                                 </div>
                             )
                     )}

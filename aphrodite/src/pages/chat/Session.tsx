@@ -156,7 +156,7 @@ export default function Session() {
                     isExtracting={chat.state === "extracting"}
                     timestamp={chat.created_at}
                     message={chat.content}
-                    context={chat.context}
+                    context={chat?.context}
                 />
             ));
     }, [chats]);
