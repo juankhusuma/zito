@@ -1,47 +1,11 @@
 import { Sheet, SheetTrigger, SheetContent } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
-// import Image from "next/image"
-
-// import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Icon } from "@iconify/react/dist/iconify.js";
-// import LexinLogo from "./LexinLogo";
-// import { getCookie } from "cookies-next";
-// import UserDataResponseType from "@/networks/response-type/UserDataResponseType";
 import { useAuth } from "@/hoc/AuthProvider";
 import { Skeleton } from "../ui/skeleton";
 import supabase from "@/common/supabase";
 
 export default function Navbar() {
-
-    // const router = useRouter()
-    // const searchParams = useSearchParams()
-    // const pathname = usePathname()
-
-    // Page Conditions
-    // const inSearchPage = pathname === '/search'
-    // const searchQueryExists = (searchParams.get('q') !== null)
-    // const inSearchResultPage = inSearchPage && searchQueryExists
-    // const showLexinLogo = inSearchResultPage || pathname.startsWith('/legal-doc')
-
-    // States
-    // const [loggedInAs, setLoggedInAs] = useState<UserDataResponseType | null>(null)
-    // const [search, setSearch] = useState<string>(searchParams.get('q') as string)
-
-    // User Data
-    // useEffect(() => {
-    //     const fromCookie = getCookie('user_data')
-    //     const userData = fromCookie ? JSON.parse(fromCookie) as UserDataResponseType : null
-    //     setLoggedInAs(userData)
-    // }, [pathname, searchParams])
-
-    // function onSubmit() {
-    //     if (search) {
-    //         const params = new URLSearchParams({ q: search }).toString();
-    //         const url = `/search?${params}`
-    //         router.push(url);
-    //     }
-    // }
-
     return (
         <div>
             <div className="flex justify-end px-8 xl:px-32 bg-[#192f59]">
@@ -83,27 +47,7 @@ export default function Navbar() {
                     </a>
                 </div>
                 <nav className="ml-auto hidden lg:flex my-16 flex-1 mr-8 xl:mr-32 gap-10">
-                    <div className="flex-1">
-                        {/* {inSearchResultPage &&
-                            <div
-                                onKeyDown={e => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault()
-                                        onSubmit()
-                                    }
-                                }}
-                                className="text-[#192f59]"
-                            >
-
-                                <input
-                                    className="w-full inline-block p-2 rounded-xl text-[#192f59] border"
-                                    value={search}
-                                    onChange={(event) => setSearch(event.currentTarget.value)}
-                                />
-                            </div>
-                        } */}
-                    </div>
-
+                    <div className="flex-1" />
                     <UserProfile />
                 </nav>
             </header>

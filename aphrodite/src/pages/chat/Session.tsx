@@ -200,7 +200,7 @@ export default function Session() {
                             access_token: data.session?.access_token,
                             refresh_token: data.session?.refresh_token,
                             messages: [...chats.map((chat) => ({
-                                content: chat.content ? `` : "" + chat.content,
+                                content: chat.content,
                                 role: chat.role,
                                 timestamp: chat.created_at
                             })), {
