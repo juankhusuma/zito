@@ -77,84 +77,80 @@ class ChatConsumer:
             "last_updated_at": datetime.now().isoformat(),
         }).eq("id", body["session_uid"]).execute()
 
-        message_ref = supabase.table("chat").insert({
-            "role": "assistant",
-            "content": "",
-            "session_uid": body["session_uid"],
-            "user_uid": body["user_uid"],
-            "state": "loading",
-        }).execute()
+        try:
+            message_ref = supabase.table("chat").insert({
+                "role": "assistant",
+                "content": "",
+                "session_uid": body["session_uid"],
+                "user_uid": body["user_uid"],
+                "state": "loading",
+            }).execute()
 
-        res = gemini_client.models.generate_content_stream(
-            model=MODEL_NAME,
-            contents=history,
-            config=types.GenerateContentConfig(
-                system_instruction=CHATBOT_SYSTEM_PROMPT,
-                tools=[
-                    legal_document_search,
-                    get_schema_information,
-                    example_queries,
-                ],
-                # temperature=0.8,
-            ),
-        )
+            res = gemini_client.models.generate_content(
+                model=MODEL_NAME,
+                contents=history,
+                config=types.GenerateContentConfig(
+                    system_instruction=CHATBOT_SYSTEM_PROMPT,
+                    tools=[
+                        legal_document_search,
+                        get_schema_information,
+                        example_queries,
+                    ],
+                ),
+            )
 
-        msg = ""
-        for i, chunk in enumerate(res):
-            if chunk.candidates[0].content and chunk.candidates[0].content.parts[0].text:
-                msg += "".join([part.text for part in chunk.candidates[0].content.parts])
-            if chunk.function_calls:
-                print(chunk.function_calls[0].args)
-            if i % 2 == 0:
-                supabase.table("chat").update({
-                    "content": msg,
-                    "state": "generating"
-                }).eq("id", message_ref.data[0]["id"]).execute()
+            supabase.table("chat").update({
+                "content": res.candidates[0].content.parts[0].text,
+                "state": "done",
+            }).eq("id", message_ref.data[0]["id"]).execute()
 
-        supabase.table("chat").update({
-            "content": msg,
-            "state": "done",
-        }).eq("id", message_ref.data[0]["id"]).execute()
-
-        if is_new:
-            try:
-                res = gemini_client.models.generate_content_stream(
-                    model="gemini-2.0-flash-lite",
-                    contents=history,
-                    config=types.GenerateContentConfig(
-                        system_instruction="""
-                        A title for the chat session, given the context of the chat, 
-                        just a sentence with a few words will do.
-                        Focus on the content of the chat, and make it as short as possible.
-                        Instead of "Pembahasan isi UU No. 1 Tahun 2021", you can just say "UU No. 1 Tahun 2021: Pembahasan"
-                        """,
-                        max_output_tokens=500,
-                    ),
-                )
-                title = ""
-                for chunk in res:
-                    try:
-                        if chunk.candidates[0].content and chunk.candidates[0].content.parts:
-                            title += "".join([part.text for part in chunk.candidates[0].content.parts])
-                    except (IndexError, AttributeError) as e:
-                        print(f"Error processing title chunk: {str(e)}")
-                        continue
-                
-                if title:
-                    supabase.table("session").update({
-                        "title": title.replace("*", "").replace("#", "").replace("`", ""),
-                    }).eq("id", body["session_uid"]).execute()
-                    print(f"Chat session title: {title}")
-                else:
-                    # Set a default title if title generation fails
+            if is_new:
+                try:
+                    res = gemini_client.models.generate_content_stream(
+                        model="gemini-2.0-flash-lite",
+                        contents=history,
+                        config=types.GenerateContentConfig(
+                            system_instruction="""
+                            A title for the chat session, given the context of the chat, 
+                            just a sentence with a few words will do.
+                            Focus on the content of the chat, and make it as short as possible.
+                            Instead of "Pembahasan isi UU No. 1 Tahun 2021", you can just say "UU No. 1 Tahun 2021: Pembahasan"
+                            """,
+                            max_output_tokens=500,
+                        ),
+                    )
+                    title = ""
+                    for chunk in res:
+                        try:
+                            if chunk.candidates[0].content and chunk.candidates[0].content.parts:
+                                title += "".join([part.text for part in chunk.candidates[0].content.parts])
+                        except (IndexError, AttributeError) as e:
+                            print(f"Error processing title chunk: {str(e)}")
+                            continue
+                    
+                    if title:
+                        supabase.table("session").update({
+                            "title": title.replace("*", "").replace("#", "").replace("`", ""),
+                        }).eq("id", body["session_uid"]).execute()
+                        print(f"Chat session title: {title}")
+                    else:
+                        # Set a default title if title generation fails
+                        supabase.table("session").update({
+                            "title": "New Conversation",
+                        }).eq("id", body["session_uid"]).execute()
+                        
+                except Exception as e:
+                    print(f"Error generating title: {str(e)}")
+                    # Set a default title if title generation fails completely
                     supabase.table("session").update({
                         "title": "New Conversation",
                     }).eq("id", body["session_uid"]).execute()
-            except Exception as e:
-                print(f"Error generating title: {str(e)}")
-                # Set a default title if title generation fails completely
-                supabase.table("session").update({
-                    "title": "New Conversation",
-                }).eq("id", body["session_uid"]).execute()
+        except Exception as e:
+            print(f"Error processing message: {str(e)}")
+            supabase.table("chat").update({
+                "content": "Terjadi isu saat menjawab pertanyaan anda, silakan coba ajukan pertanyaan anda kembali🙏",
+                "state": "done",
+            }).eq("id", message_ref.data[0]["id"]).execute()
+            return {"status": "Error processing message"}
 
         return {"status": "Message sent successfully"}

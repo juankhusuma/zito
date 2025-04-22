@@ -136,7 +136,7 @@ export default function Session() {
             })
             .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat", filter: `session_uid=eq.${sessionId}` }, (payload) => {
                 console.log("Updated chat:", payload)
-                setChats((prev) => prev.map((chat) => chat.id === payload.new.id ? payload.new as Chat : chat))
+                setChats((prev) => prev.map((chat) => chat.id === payload.new.id ? { ...payload.new, state: "generating" } as Chat : chat))
             })
             .subscribe((status) => {
                 console.log("Subscription status:", status)

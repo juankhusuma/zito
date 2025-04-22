@@ -31,6 +31,7 @@ services:
       - ./hermes/.env
     depends_on:
       - rabbitmq
+      - elasticsearch
 
   rabbitmq:
     image: rabbitmq:4-management-alpine

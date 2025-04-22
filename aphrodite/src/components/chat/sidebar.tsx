@@ -80,7 +80,7 @@ export function AppSidebar() {
                 filter: `user_uid=eq.${user?.id}`
             }, (payload) => {
                 console.log("New session:", payload)
-                setSessions((prev) => [...prev, payload.new as Session])
+                setSessions((prev) => [payload.new as Session, ...prev])
             })
 
         channel.subscribe((status, err) => {
