@@ -161,6 +161,7 @@ def get_schema_information() -> str:
     return schema_info
 
 def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
+    print(search_query)
     """
     Advanced search tool for Gemini LLM to search legal documents with complete flexibility.
     The LLM can construct any valid Elasticsearch query and aggregations.
@@ -227,6 +228,7 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
         if "aggregations" in data:
             formatted_response["aggregations"] = data["aggregations"]
             
+        print(formatted_response)
         return formatted_response
         
     except Exception as e:
