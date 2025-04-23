@@ -9,7 +9,7 @@ load_dotenv()
 # Define ES mapping schema for documentation purposes
 ES_MAPPING_SCHEMA = {
     "metadata": {
-        "Tipe Dokumen": "keyword",
+        "Tipe Dokumen": "keyword",  # UU, PP, Perpres, etc.
         "Judul": "text (indonesian_analyzer)",
         "T.E.U.": "text",
         "Nomor": "keyword",
@@ -17,17 +17,28 @@ ES_MAPPING_SCHEMA = {
         "Bentuk Singkat": "keyword",
         "Tahun": "keyword",
         "Tempat Penetapan": "keyword",
-        "Tanggal Penetapan": "date",
+        "Tanggal Penetapan": "date",  # Format: yyyy-MM-dd
         "Tanggal Pengundangan": "date",
         "Tanggal Berlaku": "date",
         "Sumber": "text",
         "Subjek": "keyword",
-        "Status": "keyword",
+        "Status": "keyword",  # Berlaku, Dicabut, etc.
         "Bahasa": "keyword",
         "Lokasi": "keyword",
         "Bidang": "keyword"
     },
-    "relations": "object",
+    "relations": {
+        "Mengubah": "nested object array",
+        "Diubah dengan": "nested object array",
+        "Diubah sebagian dengan": "nested object array",
+        "Mencabut": "nested object array",
+        "Mengubah sebagian": "nested object array", 
+        "Dicabut dengan": "nested object array",
+        "Dicabut sebagian dengan": "nested object array",
+        "Mencabut sebagian": "nested object array",
+        "Menetapkan": "nested object array",
+        "Ditetapkan dengan": "nested object array"
+    },
     "files": {
         "file_id": "keyword",
         "filename": "text",
@@ -104,26 +115,31 @@ def get_schema_information() -> str:
         String containing schema documentation
     """
     schema_info = """
-    Available fields for querying legal documents:
+    SKEMA DATA DOKUMEN HUKUM:
     
     metadata:
-      - Tipe Dokumen (keyword): Type of legal document
+      - Tipe Dokumen (keyword): Type of legal document (UU, PP, Perpres, etc.)
       - Judul (text): Title of the document, searchable using Indonesian analyzer
-      - T.E.U. (text): T.E.U. information
       - Nomor (keyword): Document number
-      - Bentuk (keyword): Document form
-      - Bentuk Singkat (keyword): Short form of document type
-      - Tahun (keyword): Year
+      - Bentuk (keyword): Document form (e.g., "Undang-Undang")
+      - Bentuk Singkat (keyword): Short form of document type (e.g., "UU")
+      - Tahun (keyword): Year of document
       - Tempat Penetapan (keyword): Place of enactment
       - Tanggal Penetapan (date): Date of enactment (format: yyyy-MM-dd)
       - Tanggal Pengundangan (date): Date of promulgation (format: yyyy-MM-dd)
       - Tanggal Berlaku (date): Effective date (format: yyyy-MM-dd)
-      - Sumber (text): Source
-      - Subjek (keyword): Subject
-      - Status (keyword): Status
-      - Bahasa (keyword): Language
-      - Lokasi (keyword): Location
-      - Bidang (keyword): Field/area
+      - Status (keyword): Document status (e.g., "Berlaku", "Dicabut")
+      - Other metadata fields: T.E.U., Sumber, Subjek, Bahasa, Lokasi, Bidang
+    
+    relations (nested objects):
+      Common relation types:
+      - Mengubah: Documents that this document changes
+      - Diubah dengan: Documents that change this document
+      - Mencabut: Documents this document revokes
+      - Dicabut dengan: Documents that revoke this document
+      - Menetapkan: Documents this document establishes
+      - Ditetapkan dengan: Documents that establish this document
+      - Each relation contains: id, title, description, url
     
     files (nested):
       - file_id (keyword): File identifier
@@ -133,6 +149,14 @@ def get_schema_information() -> str:
     
     abstrak (text): Abstract of the document, searchable using Indonesian analyzer
     catatan (text): Notes about the document, searchable using Indonesian analyzer
+    
+    PANDUAN PENCARIAN:
+    1. Gunakan match untuk pencarian dasar teks
+    2. Gunakan match_phrase untuk pencarian frasa tepat
+    3. Gunakan nested untuk mencari dalam files.content atau relations
+    4. Gunakan bool dengan kombinasi must, should, filter untuk pencarian kompleks
+    5. Gunakan range untuk pencarian rentang tanggal
+    6. Gunakan aggs untuk mendapatkan statistik atau pengelompokan
     """
     return schema_info
 
@@ -266,37 +290,84 @@ def example_queries() -> Dict[str, Dict[str, Any]]:
         Dictionary of example queries
     """
     return {
-        "basic_keyword_search": {
+        "basic_search": {
             "query": {
                 "match": {
-                    "metadata.Judul": "pajak"
+                    "metadata.Judul": "jabatan notaris"
+                }
+            },
+            "size": 10
+        },
+        "boolean_search": {
+            "query": {
+                "bool": {
+                    "should": [
+                        {"match": {"metadata.Judul": "notaris"}},
+                        {"match": {"files.content": "kewenangan notaris"}}
+                    ],
+                    "filter": [
+                        {"term": {"metadata.Status": "Berlaku"}}
+                    ]
                 }
             }
         },
-        "law_by_number": {
+        "nested_content_search": {
+            "query": {
+                "nested": {
+                    "path": "files",
+                    "query": {
+                        "match": {
+                            "files.content": "cyber notary"
+                        }
+                    }
+                }
+            }
+        },
+        "relation_search": {
+            "query": {
+                "nested": {
+                    "path": "relations.Mengubah",
+                    "query": {
+                        "match": {
+                            "relations.Mengubah.id": "uu-30-2004"
+                        }
+                    }
+                }
+            }
+        },
+        "aggregation_search": {
             "query": {
                 "bool": {
                     "must": [
-                        {"term": {"metadata.Nomor": "13"}},
-                        {"term": {"metadata.Tahun": "2003"}}
+                        {"match_phrase": {"files.content": "kewenangan notaris"}}
+                    ],
+                    "filter": [
+                        {"range": {"metadata.Tanggal Penetapan": {"gte": "2010-01-01"}}},
+                        {"term": {"metadata.Bentuk Singkat": "UU"}}
+                    ]
+                }
+            },
+            "aggs": {
+                "by_year": {
+                    "terms": {
+                        "field": "metadata.Tahun"
+                    }
+                }
+            }
+        },
+        "specific_law_search": {
+            "query": {
+                "bool": {
+                    "must": [
+                        {"term": {"metadata.Nomor": "2"}},
+                        {"term": {"metadata.Tahun": "2014"}},
+                        {"term": {"metadata.Bentuk Singkat": "UU"}}
                     ]
                 }
             },
             "size": 1
         },
-        "document_by_topic": {
-            "query": {
-                "multi_match": {
-                    "query": "hukum acara pidana",
-                    "fields": ["metadata.Judul^3", "abstrak^2", "files.content"],
-                    "type": "cross_fields",
-                    "operator": "and"
-                }
-            },
-            "size": 5,
-            "_source": ["metadata.Judul", "metadata.Nomor", "metadata.Tahun", "metadata.Bentuk", "abstrak"]
-        },
-        "nested_content_search": {
+        "phrase_search": {
             "query": {
                 "nested": {
                     "path": "files",
@@ -307,97 +378,16 @@ def example_queries() -> Dict[str, Dict[str, Any]]:
                     }
                 }
             },
-            "size": 5
-        },
-        "notaris_search": {
-            "query": {
-                "bool": {
-                    "should": [
-                        {"match": {"metadata.Judul": "notaris"}},
-                        {"match": {"abstrak": "hak dan wewenang notaris"}},
-                        {"match": {"files.content": "hak dan wewenang notaris"}}
-                    ],
-                    "minimum_should_match": 1
-                }
-            },
-            "size": 5,
-            "sort": [
-                {"_score": {"order": "desc"}}
-            ]
+            "_source": ["metadata", "abstrak", "relations"]
         },
         "multi_field_search": {
             "query": {
-                "bool": {
-                    "must": [
-                        {"match": {"metadata.Judul": "pidana"}},
-                        {"term": {"metadata.Tahun": "2023"}}
-                    ]
-                }
-            }
-        },
-        "full_text_search": {
-            "query": {
                 "multi_match": {
-                    "query": "hak asasi manusia",
+                    "query": "notaris elektronik",
                     "fields": ["metadata.Judul", "abstrak", "files.content"]
                 }
-            }
-        },
-        "date_range_search": {
-            "query": {
-                "range": {
-                    "metadata.Tanggal Penetapan": {
-                        "gte": "2020-01-01",
-                        "lte": "2023-12-31"
-                    }
-                }
-            }
-        },
-        "aggregation_example": {
-            "size": 0,
-            "aggs": {
-                "document_types": {
-                    "terms": {
-                        "field": "metadata.Tipe Dokumen",
-                        "size": 10
-                    }
-                },
-                "yearly_stats": {
-                    "terms": {
-                        "field": "metadata.Tahun",
-                        "size": 10,
-                        "order": {"_key": "desc"}
-                    }
-                }
-            }
-        },
-        "complex_search": {
-            "query": {
-                "bool": {
-                    "must": [
-                        {"match": {"metadata.Judul": "penyelenggaraan"}},
-                        {"term": {"metadata.Bentuk": "PERATURAN"}}
-                    ],
-                    "filter": [
-                        {"range": {"metadata.Tanggal Penetapan": {"gte": "2018-01-01"}}},
-                        {"term": {"metadata.Status": "Berlaku"}}
-                    ],
-                    "should": [
-                        {"match": {"abstrak": "pemerintahan daerah"}},
-                        {"match": {"files.content": "otonomi daerah"}}
-                    ],
-                    "minimum_should_match": 1
-                }
             },
-            "size": 20,
-            "sort": [
-                {"metadata.Tanggal Penetapan": {"order": "desc"}}
-            ],
-            "aggs": {
-                "by_year": {
-                    "terms": {"field": "metadata.Tahun"}
-                }
-            }
+            "size": 10
         }
     }
 
