@@ -56,7 +56,7 @@ def get_elasticsearch_url() -> str:
     Returns:
         String containing the Elasticsearch URL
     """
-    es_host = os.getenv("ELASTICSEARCH_HOST", "localhost")
+    es_host = os.getenv("ELASTICSEARCH_HOST", "elasticsearch")
     es_port = os.getenv("ELASTICSEARCH_PORT", "9200")
     return f"http://{es_host}:{es_port}"
 
