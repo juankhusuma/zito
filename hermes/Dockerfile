@@ -44,8 +44,8 @@ COPY --from=builder /app/wheels /wheels
 RUN pip install --no-cache-dir --no-index --find-links=/wheels/ /wheels/* && \
     rm -rf /wheels
 
-ENV NO_PROXY="localhost,http://localhost,http://host.docker.internal,host.docker.internal,http://elasticsearch"
-ENV no_proxy="localhost,http://localhost,http://host.docker.internal,host.docker.internal,http://elasticsearch"
+ENV NO_PROXY="localhost,elasticsearch,http://localhost,http://host.docker.internal,host.docker.internal,http://elasticsearch"
+ENV no_proxy="localhost,elasticsearch,http://localhost,http://host.docker.internal,host.docker.internal,http://elasticsearch"
 ENV HTTP_PROXY="http://proxy.cs.ui.ac.id:8080"
 ENV http_proxy="http://proxy.cs.ui.ac.id:8080"
 ENV HTTPS_PROXY="http://proxy.cs.ui.ac.id:8080"
