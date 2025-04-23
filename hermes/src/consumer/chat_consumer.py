@@ -99,8 +99,12 @@ class ChatConsumer:
                 ),
             )
 
+            usage = res.usage_metadata
             supabase.table("chat").update({
-                "content": res.candidates[0].content.parts[0].text,
+                "content": res.candidates[0].content.parts[0].text \
+                    + f"\n\n> **Jumlah Input Token**: {usage.prompt_token_count}" \
+                    + f"\n\n> **Jumlah Output Token**: {usage.candidates_token_count}" \
+                    + f"\n\n> **Jumlah Total Token**: {usage.total_token_count}",
                 "state": "done",
             }).eq("id", message_ref.data[0]["id"]).execute()
 
