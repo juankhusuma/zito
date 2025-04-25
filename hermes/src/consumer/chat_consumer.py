@@ -8,14 +8,10 @@ from google.genai import types
 from ..config.llm import CHATBOT_SYSTEM_PROMPT, MODEL_NAME
 from ..tools.search_legal_document import legal_document_search, get_schema_information, example_queries
 from datetime import datetime
+
 load_dotenv()
-import httpx
 import json
-import re
 from pydantic import BaseModel
-import asyncio
-from collections import defaultdict
-import time
 
 class CheckMessage(BaseModel):
     need_retrieval: bool
@@ -91,6 +87,7 @@ class ChatConsumer:
                 contents=history,
                 config=types.GenerateContentConfig(
                     system_instruction=CHATBOT_SYSTEM_PROMPT,
+                    temperature=0.5,
                     tools=[
                         legal_document_search,
                         get_schema_information,
