@@ -90,8 +90,8 @@ class ChatConsumer:
                     temperature=0.5,
                     tools=[
                         legal_document_search,
-                        get_schema_information,
-                        example_queries,
+                        # get_schema_information,
+                        # example_queries,
                     ],
                 ),
             )
