@@ -374,7 +374,7 @@ class ChatConsumer:
                 "role": "assistant",
                 "parts": [
                     {
-                        "text": serialized_answer_res.model_dump_json() if serialized_answer_res else answer_res.candidates[0].content,
+                        "text": serialized_answer_res.model_dump_json(),
                     },
                 ],
             }, {
