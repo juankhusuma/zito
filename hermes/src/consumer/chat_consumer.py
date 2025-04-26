@@ -84,7 +84,15 @@ class ChatConsumer:
         )
 
         serilized_check_res = Questions.model_validate(check_res.parsed)
-        serialized_answer_res: QnAList | None = None
+        serialized_answer_res = QnAList(
+            is_sufficient=False,
+            answers=[
+                {
+                    "question": "Apakah informasi yang diberikan sudah cukup untuk menjawab pertanyaan?",
+                    "answer": "Belum ada informasi yang cukup untuk menjawab pertanyaan",
+                }
+            ],
+        )
 
         if not serilized_check_res.is_sufficient:
             print("Attempting to generate content...")
