@@ -183,8 +183,7 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
     headers = {"Content-Type": "application/json"}
     
     # Set defaults
-    if "size" not in search_query:
-        search_query["size"] = 10
+    search_query["size"] = 5
     
     try:
         # Execute the search using requests directly - don't wrap in another "query" object
