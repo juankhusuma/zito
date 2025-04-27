@@ -9,9 +9,8 @@ import supabase from "@/common/supabase";
 import { useAuth } from "@/hoc/AuthProvider";
 import { Chat } from "@/pages/chat/Session";
 import { useState } from "react";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "../ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "../ui/alert-dialog";
 import { ScrollArea } from "../ui/scroll-area";
-import { a } from "node_modules/framer-motion/dist/types.d-B50aGbjN";
 
 interface ChatBubbleProps {
     sender: "user" | "assistant";
