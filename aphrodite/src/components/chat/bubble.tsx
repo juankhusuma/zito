@@ -1,24 +1,101 @@
 import { cn } from "@/lib/utils";
-import { UserCircle2 } from "lucide-react";
+import { Clipboard, RotateCcw, ThumbsDown, ThumbsUp, UserCircle2 } from "lucide-react";
 import { useAnimatedText } from "../ui/animated-text";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { TextShimmerWave } from "./shimmer";
+import { toast } from "sonner"
+import supabase from "@/common/supabase";
+import { useAuth } from "@/hoc/AuthProvider";
+import { Chat } from "@/pages/chat/Session";
+import { useState } from "react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "../ui/alert-dialog";
+import { ScrollArea } from "../ui/scroll-area";
+import { a } from "node_modules/framer-motion/dist/types.d-B50aGbjN";
 
 interface ChatBubbleProps {
     sender: "user" | "assistant";
+    chat: Chat;
     timestamp: string;
     isLoading?: boolean;
     isSearching?: boolean;
     isExtracting?: boolean;
+    isError?: boolean;
     isDone?: boolean;
     message: string;
     context?: string;
+    history: any[];
+    sessionId: string;
+    messageId: string;
+}
+
+function ActionBar(props: { text: string, history: any[], sessionId: string, messageId: string, chat: Chat }) {
+    const { user } = useAuth();
+    const [isLiked, setIsLiked] = useState(!!props.chat.is_liked);
+    const [isDisliked, setIsDisliked] = useState(!!props.chat.is_disliked);
+    return (
+        <div className="flex items-center gap-3">
+            <ThumbsUp onClick={() => {
+                setIsLiked(true);
+                setIsDisliked(false);
+                supabase.from("chat").update({
+                    is_liked: true,
+                    is_disliked: false
+                }).eq("id", props.messageId).then(() => {
+                    toast("Upvoted the result")
+                })
+            }} size={15} color="#192f59" className={cn("cursor-pointer transition-all",
+                isLiked ? "fill-[#192f59] hover:fill-none" : "hover:fill-[#192f59] hover:opacity-80"
+            )} />
+            <ThumbsDown onClick={() => {
+                setIsDisliked(true);
+                setIsLiked(false);
+                supabase.from("chat").update({
+                    is_liked: false,
+                    is_disliked: true
+                }).eq("id", props.messageId).then(() => {
+                    toast("Downvoted the result")
+                })
+            }} size={15} color="#192f59" className={cn("cursor-pointer transition-all",
+                isDisliked ? "fill-[#192f59] hover:fill-none" : "hover:opacity-80"
+            )} />
+            <RotateCcw onClick={async () => {
+                const lastMessage = props.history[props.history.length - 1];
+                await supabase.from("chat").delete().eq("id", lastMessage.id);
+                const { data } = await supabase.auth.getSession()
+                if (!data.session) {
+                    console.error("No session found")
+                    return
+                }
+                await fetch(`${import.meta.env.VITE_API_URL}/api/v1/chat`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        session_uid: props.sessionId,
+                        user_uid: user?.id,
+                        access_token: data?.session?.access_token,
+                        refresh_token: data?.session?.refresh_token,
+                        messages: [...props.history?.map((chat) => ({
+                            content: chat.content,
+                            role: chat.role,
+                            timestamp: chat.created_at
+                        }))]
+                    })
+                })
+                toast("Regenerating response");
+            }} size={15} color="#192f59" className="cursor-pointer transition-all" />
+            <Clipboard onClick={() => {
+                toast("Copied to clipboard")
+                navigator.clipboard.writeText(props.text);
+            }} size={15} color="#192f59" className="hover:fill-[#192f59] cursor-pointer transition-all" />
+        </div>
+    )
 }
 
 export default function ChatBubble(props: ChatBubbleProps) {
     const text = (props.sender === "user" || props.isDone) ? props.message : useAnimatedText(props.message);
-    const context = (props.sender === "user" || props.isDone) ? props.context : useAnimatedText(props.context || "", "\n");
     let state = "loading";
     if (props.isSearching) {
         state = "searching";
@@ -26,6 +103,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
     if (props.isExtracting) {
         state = "extracting";
     }
+    const [references, setReferences] = useState<Map<string, any>>(new Map());
     return (
         <div className={cn("flex mb-3 text-xs lg:text-sm", props.sender === "user" ? "flex-row" : "flex-row-reverse")}>
             <div className={cn("flex items-start w-full", props.sender === "user" ? "justify-end" : "justify-start")}>
@@ -50,17 +128,91 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                     {(props.isExtracting) && (
                                         <MessageLoading state={state} />
                                     )}
-                                    {(props.context) && (
-                                        <div className="prose opacity-40 prose-headings:text-base prose-sm max-w-full prose-pre:font-mono prose-code:font-mono">
-                                            <Markdown remarkPlugins={[remarkGfm]}>
-                                                {context?.split("\n").map((line) => "> " + line.replace("```", "")).join("\n")}
-                                            </Markdown>
-                                        </div>
-                                    )}
-                                    <div className="prose prose-headings:text-base prose-sm max-w-full prose-pre:font-mono prose-code:font-mono">
-                                        <Markdown remarkPlugins={[remarkGfm]}>
+                                    <div className={cn("prose prose-headings:text-base prose-sm max-w-full prose-pre:font-mono prose-code:font-mono",
+                                        props.isError && "text-red-700"
+                                    )}>
+                                        <Markdown remarkPlugins={[remarkGfm]} components={{
+                                            a: ({ node, ...p }) => {
+                                                const docId = (node?.properties?.href as string).replace("/", "")
+                                                console.log(props?.chat?.documents)
+                                                if (typeof props?.chat?.documents === "string") {
+                                                    props.chat.documents = JSON.parse(props.chat.documents)
+                                                }
+                                                const doc = (props.chat.documents as unknown as any[])?.find((doc: any) => doc._id === docId)
+                                                if (!references.has(docId)) {
+                                                    references.set(docId, {
+                                                        number: references.size + 1,
+                                                        href: (node?.properties?.href as string),
+                                                        doc
+                                                    })
+                                                    setReferences(new Map(references));
+                                                }
+
+                                                console.log(references.get(docId))
+
+                                                return (
+                                                    <a rel="noreferrer">
+                                                        <AlertDialog>
+                                                            <AlertDialogTrigger className="bg-[#192f59] cursor-pointer text-white px-2 no-underline rounded-md hover:opacity-80">{references.get(docId)?.number}</AlertDialogTrigger>
+                                                            <AlertDialogContent className="">
+                                                                <AlertDialogHeader>
+                                                                    <AlertDialogTitle className="text-center text-base prose mb-5">
+                                                                        {references.get(docId)?.doc?._source?.metadata?.Judul}
+                                                                    </AlertDialogTitle>
+                                                                    <AlertDialogDescription className="prose">
+                                                                        <ScrollArea className="h-[500px]">
+                                                                            {references.get(docId)?.doc?._source?.abstrak?.length > 0 && <b className="!text-center w-full">Abstrak</b>}
+                                                                            <ul>{references.get(docId)?.doc?._source?.abstrak?.map((item: string) => <li>{item}</li>)}</ul>
+                                                                            {references.get(docId)?.doc?._source?.catatan?.join("\n")}
+                                                                            {
+                                                                                references.get(docId)?.doc?._source?.files &&
+                                                                                <embed
+                                                                                    width={"100%"}
+                                                                                    height="600"
+                                                                                    type="application/pdf"
+                                                                                    src={"https://peraturan.bpk.go.id" + references.get(docId)?.doc?._source?.files[0].download_url}
+                                                                                />
+                                                                            }
+                                                                        </ScrollArea>
+                                                                        <ul>
+                                                                            {references.get(docId)?.doc?._source?.files?.map((item: any) => (
+                                                                                <li key={item?.file_id} className="text-sm">
+                                                                                    <a href={"https://peraturan.bpk.go.id" + item?.download_url} target="_blank" rel="noreferrer" className="text-[#192f59] hover:underline">{item?.filename}</a>
+                                                                                </li>
+                                                                            ))}
+                                                                        </ul>
+                                                                        {
+                                                                            Object.keys(references.get(docId)?.doc?._source?.relations).map((key: string) => (
+                                                                                <div key={key}>
+                                                                                    <b>{key}</b>
+                                                                                    <ul>
+                                                                                        {references.get(docId)?.doc?._source?.relations[key].map((item: any) => (
+                                                                                            <li key={item?.file_id} className="text-sm">
+                                                                                                <a href={"https://peraturan.bpk.go.id" + item?.url}
+                                                                                                    target="_blank" rel="noreferrer"
+                                                                                                    className="text-[#192f59] hover:underline">
+                                                                                                    {item?.title}
+                                                                                                </a>
+                                                                                            </li>
+                                                                                        ))}
+                                                                                    </ul>
+                                                                                </div>
+                                                                            ))
+                                                                        }
+                                                                    </AlertDialogDescription>
+                                                                </AlertDialogHeader>
+                                                                <AlertDialogFooter>
+                                                                    <AlertDialogAction>Tutup</AlertDialogAction>
+                                                                </AlertDialogFooter>
+                                                            </AlertDialogContent>
+                                                        </AlertDialog>
+                                                    </a>
+                                                )
+                                            },
+                                        }}>
                                             {text}
                                         </Markdown>
+                                        <ActionBar chat={props.chat} messageId={props.messageId} sessionId={props.sessionId} text={text} history={props.history} />
                                     </div>
                                 </div>
                             )

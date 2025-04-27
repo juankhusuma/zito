@@ -9,7 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import ChatBubble from "@/components/chat/bubble";
 import { randomQuestions } from "@/utils/getRecommendation";
 
-interface Chat {
+export interface Chat {
     id: string;
     role: "user" | "assistant";
     content: string;
@@ -17,6 +17,9 @@ interface Chat {
     user_uid: string;
     session_uid: string;
     context?: string;
+    is_liked?: boolean;
+    is_disliked?: boolean;
+    documents?: string;
     state: "done" | "loading" | "error" | "generating" | "searching" | "extracting";
 }
 
@@ -136,7 +139,14 @@ export default function Session() {
             })
             .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat", filter: `session_uid=eq.${sessionId}` }, (payload) => {
                 console.log("Updated chat:", payload)
-                setChats((prev) => prev.map((chat) => chat.id === payload.new.id ? { ...payload.new, state: "generating" } as Chat : chat))
+                setChats((prev) => prev.map((chat) => chat.id === payload.new.id ? {
+                    ...chat,
+                    ...payload.new
+                } as Chat : chat))
+            })
+            .on("postgres_changes", { event: "DELETE", schema: "public", table: "chat", filter: `session_uid=eq.${sessionId}` }, (payload) => {
+                console.log("Deleted chat:", payload)
+                setChats((prev) => prev.filter((chat) => chat.id !== payload.old.id))
             })
             .subscribe((status) => {
                 console.log("Subscription status:", status)
@@ -148,15 +158,20 @@ export default function Session() {
             .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
             .map((chat) => (
                 <ChatBubble
+                    chat={chat}
                     sender={chat.role}
                     key={chat.id}
                     isLoading={chat.state === "loading"}
                     isDone={chat.state === "done"}
                     isSearching={chat.state === "searching"}
                     isExtracting={chat.state === "extracting"}
+                    isError={chat.state === "error"}
                     timestamp={chat.created_at}
                     message={chat.content}
                     context={chat?.context}
+                    history={chats}
+                    sessionId={sessionId || ""}
+                    messageId={chat.id}
                 />
             ));
     }, [chats]);

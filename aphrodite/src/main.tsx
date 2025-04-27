@@ -13,6 +13,7 @@ import Navbar from './components/layout/navbar.tsx';
 import Footer from './components/layout/footer.tsx';
 import { MantineProvider } from '@mantine/core';
 import ChatLayout from './components/chat/layout.tsx';
+import { Toaster } from "@/components/ui/sonner"
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -36,6 +37,7 @@ createRoot(document.getElementById('root')!).render(
           </div>
           <Footer />
         </div>
+        <Toaster />
       </MantineProvider>
     </AuthProvider>
   </StrictMode>,
