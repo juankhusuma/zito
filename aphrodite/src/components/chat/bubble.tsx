@@ -131,7 +131,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                         props.isError && "text-red-700"
                                     )}>
                                         <Markdown remarkPlugins={[remarkGfm]} components={{
-                                            a: ({ node, ...p }) => {
+                                            a: ({ node }) => {
                                                 const docId = (node?.properties?.href as string).replace("/", "")
                                                 console.log(props?.chat?.documents)
                                                 if (typeof props?.chat?.documents === "string") {
