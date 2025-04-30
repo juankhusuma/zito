@@ -75,6 +75,7 @@ class ChatConsumer:
         
     @staticmethod
     def __answer_user(history: History, documents: list[dict], serialized_answer_res: QnAList):
+        time.sleep(1)
         context = history
         if len(documents) > 0 and len(serialized_answer_res.answers) > 0:
             context = history + [{
@@ -102,6 +103,7 @@ class ChatConsumer:
 
     @staticmethod
     def __answer_generated_questions(history: History, documents: list[dict], serilized_check_res: Questions):
+        time.sleep(1)
         answer_res = gemini_client.models.generate_content(
                 model=MODEL_NAME,
                 contents=history,
@@ -126,6 +128,7 @@ class ChatConsumer:
     
     @staticmethod
     def __generate_and_execute_es_query(questions: list[str]):
+        time.sleep(1)
         last_no_hit = False
         prev_query = None
         max_attempt = 3
@@ -159,7 +162,7 @@ class ChatConsumer:
                 last_no_hit = True
                 continue
             if error is None:
-                return documents
+                return documents[:5]
             time.sleep(1)
 
     @staticmethod
@@ -201,7 +204,16 @@ class ChatConsumer:
         try:
             message_ref = ChatConsumer.__init_message(body["session_uid"], body["user_uid"])
             documents = []
-            serilized_check_res = ChatConsumer.__init_evaluation(history)
+            attempt = 3
+            while attempt > 0:
+                attempt -= 1
+                try:
+                    serilized_check_res = ChatConsumer.__init_evaluation(history)
+                    break
+                except Exception as e:
+                    print(f"Error generating question: {str(e)}")
+                    time.sleep(2)
+                    continue
             serialized_answer_res = QnAList(
                 is_sufficient=False,
                 answers=[],
@@ -212,11 +224,29 @@ class ChatConsumer:
                 print("Setting search state")
                 ChatConsumer.__set_search_state(message_ref.data[0]["id"])
                 documents = ChatConsumer.__generate_and_execute_es_query(serilized_check_res.questions)
-                serialized_answer_res = ChatConsumer.__answer_generated_questions(history, documents, serilized_check_res)
+                attempt = 3
+                while attempt > 0:
+                    attempt -= 1
+                    try:
+                        serialized_answer_res = ChatConsumer.__answer_generated_questions(history, documents, serilized_check_res)
+                        break
+                    except Exception as e:
+                        print(f"Error generating answer: {str(e)}")
+                        time.sleep(2)
+                        continue
                 print(serialized_answer_res)
-                res = ChatConsumer.__answer_user(history, documents, serialized_answer_res)
+                attempt = 3
+                while attempt > 0:
+                    attempt -= 1
+                    try:
+                        res = ChatConsumer.__answer_user(history, documents, serialized_answer_res)
+                        break
+                    except Exception as e:
+                        print(f"Error generating answer: {str(e)}")
+                        time.sleep(2)
+                        continue
                 supabase.table("chat").update({
-                    "content": res.candidates[0].content.parts[0].text,
+                    "content": res.text,
                     "state": "done",
                     "documents": json.dumps(documents, indent=2),
                 }).eq("id", message_ref.data[0]["id"]).execute()

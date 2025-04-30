@@ -8,6 +8,7 @@ import { ArrowUp, Square } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import ChatBubble from "@/components/chat/bubble";
 import { randomQuestions } from "@/utils/getRecommendation";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export interface Chat {
     id: string;
@@ -29,6 +30,7 @@ export default function Session() {
     const { user, loading } = useAuth()
     const [chats, setChats] = React.useState<Chat[]>([])
     const [isLoading, setIsLoading] = React.useState(false)
+    const [isPageLoading, setIsPageLoading] = React.useState(true)
     const [prompt, setPrompt] = React.useState("")
     const scrollAreaRef = useRef<HTMLDivElement>(null)
 
@@ -113,45 +115,69 @@ export default function Session() {
     }, [chats]);
 
     useEffect(() => {
-        if (!user) return
-        if (!sessionId) return setChats([{
-            id: "start",
-            content: "Halo! Selamat datang di **Lexin Chat!** Saya adalah **asisten virtual** Anda. Silakan ajukan **pertanyaan** atau beri tahu saya **apa yang dapat saya bantu**. Saya akan melakukan yang terbaik untuk **membantu** Anda. Mari kita mulai! 😊🙏",
-            role: "assistant",
-            created_at: new Date(0).toISOString(),
-            user_uid: user?.id || "",
-            session_uid: sessionId || "",
-            state: "generating"
-        }]);
-        supabase.from("chat").select("*").eq("session_uid", sessionId).then(({ data, error }) => {
-            if (error) {
-                console.error("Error fetching chats:", error)
-                return
-            }
-            setChats(data)
-            console.log("Fetched chats:", data)
-        })
+        // Reset loading state when sessionId changes
+        setIsPageLoading(true);
+        setChats([]);
 
-        supabase.channel(`chat::${user.id}::${sessionId}`)
+        if (!user) return;
+
+        if (!sessionId) {
+            setChats([{
+                id: "start",
+                content: "Halo! Selamat datang di **Lexin Chat!** Saya adalah **asisten virtual** Anda. Silakan ajukan **pertanyaan** atau beri tahu saya **apa yang dapat saya bantu**. Saya akan melakukan yang terbaik untuk **membantu** Anda. Mari kita mulai! 😊🙏",
+                role: "assistant",
+                created_at: new Date(0).toISOString(),
+                user_uid: user?.id || "",
+                session_uid: sessionId || "",
+                state: "generating"
+            }]);
+            setIsPageLoading(false);
+            return;
+        }
+
+        // Create a flag to handle race conditions
+        let isCurrentRequest = true;
+
+        supabase.from("chat").select("*").eq("session_uid", sessionId).then(({ data, error }) => {
+            // Ignore results if this effect has been cleaned up or re-run
+            if (!isCurrentRequest) return;
+
+            if (error) {
+                console.error("Error fetching chats:", error);
+                setIsPageLoading(false);
+                return;
+            }
+            setChats(data);
+            console.log("Fetched chats:", data);
+            setIsPageLoading(false);
+        });
+
+        const channel = supabase.channel(`chat::${user.id}::${sessionId}`)
             .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat", filter: `session_uid=eq.${sessionId}` }, (payload) => {
-                console.log("New chat:", payload)
-                setChats((prev) => [...prev, payload.new as Chat])
+                console.log("New chat:", payload);
+                setChats((prev) => [...prev, payload.new as Chat]);
             })
             .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat", filter: `session_uid=eq.${sessionId}` }, (payload) => {
-                console.log("Updated chat:", payload)
+                console.log("Updated chat:", payload);
                 setChats((prev) => prev.map((chat) => chat.id === payload.new.id ? {
                     ...chat,
                     ...payload.new
-                } as Chat : chat))
+                } as Chat : chat));
             })
             .on("postgres_changes", { event: "DELETE", schema: "public", table: "chat", filter: `session_uid=eq.${sessionId}` }, (payload) => {
-                console.log("Deleted chat:", payload)
-                setChats((prev) => prev.filter((chat) => chat.id !== payload.old.id))
+                console.log("Deleted chat:", payload);
+                setChats((prev) => prev.filter((chat) => chat.id !== payload.old.id));
             })
             .subscribe((status) => {
-                console.log("Subscription status:", status)
-            })
-    }, [user, sessionId])
+                console.log("Subscription status:", status);
+            });
+
+        // Return cleanup function
+        return () => {
+            isCurrentRequest = false;
+            channel.unsubscribe();
+        };
+    }, [user, sessionId]);
 
     const memoizedChatList = useMemo(() => {
         return chats
@@ -177,13 +203,28 @@ export default function Session() {
     }, [chats]);
 
     return (
-        <div className='p-5 flex flex-col items-center justify-center'>
-            <ScrollArea ref={scrollAreaRef} className="h-[calc(100svh-30rem)] w-full flex justify-center items-center lg:px-5">
-                <div className="w-full">
-                    {memoizedChatList}
-                </div>
+        <div className='p-2 lg:p-5 flex flex-col items-center justify-center'>
+            <ScrollArea ref={scrollAreaRef} className="lg:h-[calc(1000px)] h-[calc(1000px-30rem)] w-full flex justify-center items-center lg:px-5">
+                {
+                    (isPageLoading) ? (
+                        Array.from({ length: 25 }).map((_, index) => (
+                            <div className="w-full flex" style={{
+                                justifyContent: Math.random() > 0.2 ? "flex-start" : "flex-end",
+                            }} key={index}>
+                                <Skeleton key={index} className="w-full h-2 my-1" style={{
+                                    width: `${Math.max(Math.random() * 50, 10)}%`,
+                                    height: `${Math.max(Math.random() * 35, 25)}px`,
+                                }} />
+                            </div>
+                        ))
+                    )
+                        :
+                        (<div className="w-full">
+                            {memoizedChatList}
+                        </div>)
+                }
             </ScrollArea>
-            <form className="w-full px-10 absolute bottom-20"
+            <form className="w-full px-10"
                 onSubmit={async (e) => {
                     e.preventDefault()
                     if (!user) return

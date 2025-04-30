@@ -18,7 +18,7 @@ export default function Login() {
     const navigate = useNavigate()
 
     return (
-        <form className="flex justify-center items-center h-full" onSubmit={async (e) => {
+        <form className="flex justify-center items-center h-full mb-[10rem]" onSubmit={async (e) => {
             e.preventDefault()
             setLoading(true)
             const res = await supabase.auth.signInWithPassword({

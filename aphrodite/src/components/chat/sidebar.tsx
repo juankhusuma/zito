@@ -175,7 +175,7 @@ export function AppSidebar() {
 
 
     return (
-        <Sidebar collapsible="offcanvas" className="absolute border-t h-[calc(100svh-16rem)]">
+        <Sidebar collapsible="offcanvas" className="absolute border-t h-full flex-1">
             <TooltipProvider>
                 <SidebarHeader >
                     <div className="flex items-center justify-between gap-4 px-4 py-2">

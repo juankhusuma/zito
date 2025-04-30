@@ -93,8 +93,18 @@ function ActionBar(props: { text: string, history: any[], sessionId: string, mes
     )
 }
 
+function formatIEEEReference(doc: any, index: number): string {
+    if (!doc) return "";
+
+    const title = doc._source?.metadata?.Judul || "Untitled Document";
+
+    return `[${index}] ${title}.`;
+}
+
 export default function ChatBubble(props: ChatBubbleProps) {
-    const text = (props.sender === "user" || props.isDone) ? props.message : useAnimatedText(props.message);
+    const animatedText = useAnimatedText(props.message);
+    const text = (props.sender === "user" || props.isDone) ? props.message : animatedText;
+
     let state = "loading";
     if (props.isSearching) {
         state = "searching";
@@ -103,6 +113,18 @@ export default function ChatBubble(props: ChatBubbleProps) {
         state = "extracting";
     }
     const [references, setReferences] = useState<Map<string, any>>(new Map());
+
+    // Sort references by number for displaying in order
+    const sortedReferences = Array.from(references.values())
+        .sort((a, b) => a.number - b.number);
+
+    const getPdfUrl = (doc: any): string => {
+        if (doc?._source?.files && doc._source.files.length > 0) {
+            return "https://peraturan.bpk.go.id" + doc._source.files[0].download_url;
+        }
+        return "#";
+    };
+
     return (
         <div className={cn("flex mb-3 text-xs lg:text-sm", props.sender === "user" ? "flex-row" : "flex-row-reverse")}>
             <div className={cn("flex items-start w-full", props.sender === "user" ? "justify-end" : "justify-start")}>
@@ -132,7 +154,10 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                     )}>
                                         <Markdown remarkPlugins={[remarkGfm]} components={{
                                             a: ({ node }) => {
-                                                const docId = (node?.properties?.href as string).replace("/", "")
+                                                let docId = (node?.properties?.href as string).replace("https://chat.lexin.cs.ui.ac.id/details/", "")
+                                                if (!docId) return null;
+                                                docId = docId.replace("%20", " ")
+                                                console.log(docId)
                                                 console.log(props?.chat?.documents)
                                                 if (typeof props?.chat?.documents === "string") {
                                                     props.chat.documents = JSON.parse(props.chat.documents)
@@ -159,7 +184,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                                         {references.get(docId)?.doc?._source?.metadata?.Judul}
                                                                     </AlertDialogTitle>
                                                                     <AlertDialogDescription className="prose">
-                                                                        <ScrollArea className="h-[500px]">
+                                                                        <ScrollArea className="h-[300px]">
                                                                             {references.get(docId)?.doc?._source?.abstrak?.length > 0 && <b className="!text-center w-full">Abstrak</b>}
                                                                             <ul>{references.get(docId)?.doc?._source?.abstrak?.map((item: string) => <li>{item}</li>)}</ul>
                                                                             {references.get(docId)?.doc?._source?.catatan?.join("\n")}
@@ -176,11 +201,13 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                                         <ul>
                                                                             {references.get(docId)?.doc?._source?.files?.map((item: any) => (
                                                                                 <li key={item?.file_id} className="text-sm">
-                                                                                    <a href={"https://peraturan.bpk.go.id" + item?.download_url} target="_blank" rel="noreferrer" className="text-[#192f59] hover:underline">{item?.filename}</a>
+                                                                                    <a href={"https://peraturan.bpk.go.id" + item?.download_url} target="_blank" rel="noreferrer" className="text-[#192f59] hover:underline">
+                                                                                        Unduh {item?.filename}
+                                                                                    </a>
                                                                                 </li>
                                                                             ))}
                                                                         </ul>
-                                                                        {
+                                                                        {references.get(docId)?.doc?._source?.relations &&
                                                                             Object.keys(references.get(docId)?.doc?._source?.relations).map((key: string) => (
                                                                                 <div key={key}>
                                                                                     <b>{key}</b>
@@ -209,8 +236,33 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                 )
                                             },
                                         }}>
-                                            {text}
+                                            {text.replace("```", "").replace(/\]\(([^)]+)\)/g, (_, url) => {
+                                                // Replace spaces with %20 in URLs
+                                                const encodedUrl = url.replace(/ /g, '%20');
+                                                return `](${encodedUrl})`;
+                                            })}
                                         </Markdown>
+
+                                        {/* Reference List in IEEE Format */}
+                                        {props.sender === "assistant" && sortedReferences.length > 0 && (
+                                            <div className="mt-4 pt-3 border-t border-gray-300 dark:border-gray-700">
+                                                <h4 className="font-semibold">Sumber:</h4>
+                                                <ul className="list-none pl-2 space-y-2 text-sm">
+                                                    {sortedReferences.map((ref, index) => (
+                                                        <li key={index} className="text-sm mb-2">
+                                                            <a
+                                                                href={getPdfUrl(ref.doc)}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                className="text-[#192f59] font-semibold text-left cursor-pointer">
+                                                                {formatIEEEReference(ref.doc, ref.number)}
+                                                            </a>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+
                                         <ActionBar chat={props.chat} messageId={props.messageId} sessionId={props.sessionId} text={text} history={props.history} />
                                     </div>
                                 </div>

@@ -1,6 +1,6 @@
 export default function Footer() {
     return (
-        <footer className="z-[100] relative overflow-hidden">
+        <footer className="z-[100] relative overflow-hidden lg:mt-0">
             <div className="bg-[#181818] py-10 lg:py-20 px-10 flex-col lg:flex-row lg:px-32 flex justify-center gap-10">
                 <div>
                     <img src="/logo-lexin-white.png" alt="lexin" width="400px" height="113px" />

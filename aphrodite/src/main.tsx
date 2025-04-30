@@ -19,7 +19,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthProvider>
       <MantineProvider>
-        <div className='flex flex-col justify-between min-h-svh'>
+        <div className='flex flex-col justify-between min-h-[2vh]'>
           <Navbar />
           <div className='pt-5 flex-1'>
             <BrowserRouter>
