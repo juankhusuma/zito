@@ -6,7 +6,7 @@ import '@mantine/core/styles.css';
 import { BrowserRouter, Routes, Route } from "react-router";
 import { AuthProvider } from './hoc/AuthProvider.tsx';
 import Login from './pages/auth/Login.tsx';
-import Register from './pages/auth/Register.tsx';
+// import Register from './pages/auth/Register.tsx';
 import Session from './pages/chat/Session.tsx';
 import Home from './pages/index.tsx';
 import Navbar from './components/layout/navbar.tsx';
