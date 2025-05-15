@@ -203,8 +203,8 @@ export default function Session() {
     }, [chats]);
 
     return (
-        <div className='p-2 lg:p-5 flex flex-col items-center justify-center'>
-            <ScrollArea ref={scrollAreaRef} className="lg:h-[calc(1000px)] h-[calc(1000px-30rem)] w-full flex justify-center items-center lg:px-5">
+        <div className='h-full w-full bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col'>
+            <ScrollArea ref={scrollAreaRef} className="w-full flex-1 px-4 md:px-8 lg:px-12 h-[100vh]">
                 {
                     (isPageLoading) ? (
                         Array.from({ length: 25 }).map((_, index) => (
@@ -219,109 +219,128 @@ export default function Session() {
                         ))
                     )
                         :
-                        (<div className="w-full">
+                        (<div className="w-full max-w-4xl mx-auto py-6 mb-32">
                             {memoizedChatList}
                         </div>)
                 }
             </ScrollArea>
-            <form className="w-full px-10"
-                onSubmit={async (e) => {
-                    e.preventDefault()
-                    if (!user) return
-                    if (!sessionId) return await newSessionChat(prompt);
-                    const { error } = await supabase.from("chat").insert({
-                        role: "user",
-                        content: prompt,
-                        session_uid: sessionId,
-                        user_uid: user.id,
-                        state: "done"
-                    })
-                    if (error) {
-                        console.error("Error inserting chat:", error)
-                        return
-                    }
-                    const { data } = await supabase.auth.getSession()
-                    if (!data.session) {
-                        console.error("No session found")
-                        return
-                    }
-                    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/chat`, {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json"
-                        },
-                        body: JSON.stringify({
+            <div className="sticky bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white to-transparent pt-6 pb-4 px-4 md:px-8 lg:px-12 z-10 mt-auto">
+                <form className="w-full max-w-4xl mx-auto"
+                    onSubmit={async (e) => {
+                        e.preventDefault()
+                        if (!user) return
+                        if (!sessionId) return await newSessionChat(prompt);
+                        const { error } = await supabase.from("chat").insert({
+                            role: "user",
+                            content: prompt,
                             session_uid: sessionId,
                             user_uid: user.id,
-                            access_token: data.session?.access_token,
-                            refresh_token: data.session?.refresh_token,
-                            messages: [...chats.map((chat) => ({
-                                content: chat.content,
-                                role: chat.role,
-                                timestamp: chat.created_at
-                            })), {
-                                content: prompt,
-                                role: "user",
-                                timestamp: new Date().toISOString()
-                            }]
+                            state: "done"
                         })
-                    })
-                    const json = await res.json()
-                    console.log("Response:", json)
-                    setPrompt("")
-                }}
-            >
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 mb-4">
-                    {!sessionId && randomQuestions.map((question => (
-                        <Button
-                            key={question}
-                            variant="outline"
-                            className="w-full py-5 cursor-pointer border-[#192f59] text-[#192f59] hover:bg-[#192f59] hover:text-white"
-                            onClick={async () => {
-                                await newSessionChat(question)
-                                scrollToBottom()
-                            }}
-                        >
-                            <p className="lowercase text-wrap text-sm">{question}</p>
-                        </Button>
-                    )))}
-                </div>
-                <PromptInput
-                    value={prompt}
-                    onValueChange={(e) => setPrompt(e)}
-                    isLoading={isLoading}
+                        if (error) {
+                            console.error("Error inserting chat:", error)
+                            return
+                        }
+                        const { data } = await supabase.auth.getSession()
+                        if (!data.session) {
+                            console.error("No session found")
+                            return
+                        }
+                        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/chat`, {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json"
+                            },
+                            body: JSON.stringify({
+                                session_uid: sessionId,
+                                user_uid: user.id,
+                                access_token: data.session?.access_token,
+                                refresh_token: data.session?.refresh_token,
+                                messages: [...chats.map((chat) => ({
+                                    content: chat.content,
+                                    role: chat.role,
+                                    timestamp: chat.created_at
+                                })), {
+                                    content: prompt,
+                                    role: "user",
+                                    timestamp: new Date().toISOString()
+                                }]
+                            })
+                        })
+                        const json = await res.json()
+                        console.log("Response:", json)
+                        setPrompt("")
+                    }}
                 >
-                    <PromptInputTextarea
-                        placeholder="Tanyakan pertanyaan Anda..."
-                        onKeyDown={(e) => {
-                            // Submit form when Enter is pressed without Shift key
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault(); // Prevent adding a new line
-                                // Find and submit the form
-                                e.currentTarget.closest('form')?.requestSubmit();
-                            }
-                        }}
-                    />
-                    <PromptInputActions className="justify-end pt-2">
-                        <PromptInputAction
-                            tooltip={isLoading ? "Stop generation" : "Send message"}
+                    {!sessionId && (
+                        <div className="mb-4">
+                            <h3 className="text-sm font-medium text-gray-700 mb-2">Suggested questions:</h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto">
+                                {randomQuestions.map((question => (
+                                    <Button
+                                        key={question}
+                                        variant="outline"
+                                        className="w-full py-3 px-4 cursor-pointer border border-[#192f59]/30 text-[#192f59] hover:bg-[#192f59]/10 hover:border-[#192f59] transition-all text-left justify-start rounded-lg"
+                                        onClick={async () => {
+                                            await newSessionChat(question)
+                                            scrollToBottom()
+                                        }}
+                                    >
+                                        <p className="text-wrap text-sm">{question}</p>
+                                    </Button>
+                                )))}
+                            </div>
+                        </div>
+                    )}
+                    <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden transition-all hover:shadow-xl">
+                        <PromptInput
+                            value={prompt}
+                            onValueChange={(e) => setPrompt(e)}
+                            isLoading={isLoading}
+                            className="border-none focus-within:ring-0"
                         >
-                            <Button
-                                variant="default"
-                                size="icon"
-                                type="submit"
-                                className="h-8 w-8 rounded-full bg-[#192f59]"
-                            >
-                                {isLoading ? (
-                                    <Square className="size-5 fill-current" />
-                                ) : (
-                                    <ArrowUp className="size-5" />
-                                )}
-                            </Button>
-                        </PromptInputAction>
-                    </PromptInputActions>
-                </PromptInput>
-            </form>
+                            <div className="flex flex-col">
+                                <PromptInputTextarea
+                                    placeholder="Tanyakan pertanyaan Anda..."
+                                    className="min-h-[70px] py-4 px-5 focus:ring-0 focus-visible:ring-0 border-none resize-none text-base"
+                                    onKeyDown={(e) => {
+                                        // Submit form when Enter is pressed without Shift key
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault(); // Prevent adding a new line
+                                            // Find and submit the form
+                                            e.currentTarget.closest('form')?.requestSubmit();
+                                        }
+                                    }}
+                                />
+                                <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-t border-gray-100">
+                                    <div className="text-xs text-gray-500">
+                                        Press <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-mono">Enter</kbd> to send, <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-mono">Shift+Enter</kbd> for new line
+                                    </div>
+                                    <PromptInputActions className="justify-end">
+                                        <PromptInputAction
+                                            tooltip={isLoading ? "Stop generation" : "Send message"}
+                                        >
+                                            <Button
+                                                variant="default"
+                                                size="icon"
+                                                type="submit"
+                                                disabled={prompt.trim().length === 0}
+                                                className={`h-10 w-10 rounded-full shadow-md transition-all ${prompt.trim().length === 0 ? 'bg-gray-300' : 'bg-[#192f59] hover:bg-[#0d1e3f]'}`}
+                                            >
+                                                {isLoading ? (
+                                                    <Square className="size-4 fill-current" />
+                                                ) : (
+                                                    <ArrowUp className="size-4" />
+                                                )}
+                                            </Button>
+                                        </PromptInputAction>
+                                    </PromptInputActions>
+                                </div>
+                            </div>
+                        </PromptInput>
+                    </div>
+                </form>
+            </div>
         </div>
     )
 }

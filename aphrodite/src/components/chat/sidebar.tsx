@@ -17,13 +17,14 @@ import {
 } from "@/components/ui/sidebar"
 import { useAuth } from "@/hoc/AuthProvider"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { MoreHorizontal, Trash2 } from "lucide-react"
-import React, { useEffect } from "react"
+import { MessageSquarePlus, MoreHorizontal, Search, Trash2 } from "lucide-react"
+import React, { useEffect, useState } from "react"
 import { useNavigate, useParams } from "react-router"
 import PrimaryButton from "../button"
 import { cn } from "@/lib/utils"
 import { TooltipProvider, TooltipTrigger } from "@radix-ui/react-tooltip"
 import { Tooltip, TooltipContent } from "../ui/tooltip"
+import { Input } from "@/components/ui/input"
 
 interface Session {
     id: string
@@ -39,6 +40,8 @@ export function AppSidebar() {
     const [groups, setGroups] = React.useState<{ [key: string]: Session[] }>({})
     const [sidebarLoading, setSidebarLoading] = React.useState(false)
     const { sessionId } = useParams()
+    const [searchQuery, setSearchQuery] = useState("")
+    const [filteredGroups, setFilteredGroups] = useState<{ [key: string]: Session[] }>({})
 
     useEffect(() => {
         setSidebarLoading(true)
@@ -173,87 +176,136 @@ export function AppSidebar() {
         console.log(sessions)
     }, [sessions])
 
+    useEffect(() => {
+        if (!searchQuery.trim()) {
+            setFilteredGroups(groups);
+            return;
+        }
+
+        const query = searchQuery.toLowerCase();
+        const filtered: { [key: string]: Session[] } = {};
+
+        Object.entries(groups).forEach(([groupName, groupSessions]) => {
+            const matchingSessions = groupSessions.filter(
+                session => session.title.toLowerCase().includes(query)
+            );
+
+            if (matchingSessions.length > 0) {
+                filtered[groupName] = matchingSessions;
+            }
+        });
+
+        setFilteredGroups(filtered);
+    }, [searchQuery, groups]);
 
     return (
-        <Sidebar collapsible="offcanvas" className="absolute border-t h-full flex-1">
+        <Sidebar collapsible="offcanvas" className="absolute border-t h-full flex-1 bg-gray-100 shadow-sm z-[200]">
             <TooltipProvider>
-                <SidebarHeader >
-                    <div className="flex items-center justify-between gap-4 px-4 py-2">
-                        <PrimaryButton className="flex-1" onClick={() => {
-                            navigate("/chat")
-                        }}>
-                            <p className="text-sm text-center w-full font-bold">Add New Chat</p>
+                <SidebarHeader className="p-3">
+                    <div className="flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                            <SidebarTrigger className="cursor-pointer lg:hidden p-1.5 hover:bg-gray-100 rounded-full transition-colors" />
+                        </div>
+
+                        <PrimaryButton
+                            className="flex items-center gap-2 justify-center bg-[#192f59] hover:bg-[#0d1e3f] transition-colors py-2.5 rounded-lg text-white shadow-sm"
+                            onClick={() => navigate("/chat")}
+                        >
+                            <MessageSquarePlus size={16} />
+                            <span className="text-sm font-medium">New Chat</span>
                         </PrimaryButton>
-                        <SidebarTrigger className="cursor-pointer lg:hidden" />
+
+                        <div className="relative">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+                            <Input
+                                placeholder="Search conversations..."
+                                className="pl-9 py-2 h-9 text-sm border-gray-200 focus-visible:ring-[#192f59] focus-visible:ring-offset-0"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
                     </div>
-                    <SidebarSeparator />
+                    <SidebarSeparator className="mt-3" />
                 </SidebarHeader>
-                <SidebarContent>
-                    {
-                        sidebarLoading && (
-                            <SidebarMenu>
-                                {Array.from({ length: 20 }).map((_, index) => (
-                                    <SidebarMenuItem key={index} className="pl-5">
-                                        <SidebarMenuSkeleton className="" />
-                                    </SidebarMenuItem>
-                                ))}
-                            </SidebarMenu>
-                        )
-                    }
-                    {
-                        !sidebarLoading && Object.entries(groups).filter((group) => {
-                            const sessions = groups[group[0]]
-                            return sessions.length > 0
-                        }).map(([group, sessions]) => (
+
+                <SidebarContent className="px-2">
+                    {sidebarLoading && (
+                        <SidebarMenu>
+                            {Array.from({ length: 6 }).map((_, index) => (
+                                <SidebarMenuItem key={index} className="mb-1">
+                                    <SidebarMenuSkeleton className="h-10" />
+                                </SidebarMenuItem>
+                            ))}
+                        </SidebarMenu>
+                    )}
+
+                    {!sidebarLoading && Object.keys(filteredGroups).length === 0 && searchQuery && (
+                        <div className="p-4 text-center text-gray-500">
+                            <p className="text-sm">No conversations found</p>
+                        </div>
+                    )}
+
+                    {!sidebarLoading && Object.entries(filteredGroups)
+                        .filter(([_, sessions]) => sessions.length > 0)
+                        .map(([group, sessions]) => (
                             <SidebarGroup key={group}>
-                                <SidebarGroupLabel>{group}</SidebarGroupLabel>
+                                <SidebarGroupLabel className="px-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    {group}
+                                </SidebarGroupLabel>
                                 <SidebarGroupContent>
                                     <SidebarMenu>
                                         {sessions.map((session) => (
-                                            <SidebarMenuItem key={session.id} className="cursor-pointer group/session">
+                                            <SidebarMenuItem
+                                                key={session.id}
+                                                className={cn(
+                                                    "cursor-pointer group/session rounded-md mb-1 overflow-hidden",
+                                                    sessionId === session.id ? "bg-[#192f59]/10" : "hover:bg-gray-100"
+                                                )}
+                                            >
                                                 <Tooltip>
                                                     <TooltipTrigger asChild>
                                                         <span className="flex-1">
-                                                            <SidebarMenuButton asChild className="group-hover/session:visible">
-                                                                <div onClick={() => navigate(session.id)} className={cn("flex items-center text-slate-800 text-sm font-semibold",
-                                                                    sessionId === session.id && "bg-[#192f59] text-white"
-                                                                )}>
-                                                                    <span>{session.title}</span>
+                                                            <SidebarMenuButton asChild>
+                                                                <div
+                                                                    onClick={() => navigate(session.id)}
+                                                                    className={cn(
+                                                                        "flex items-center py-2 pl-3 pr-1 text-sm font-medium truncate transition-colors",
+                                                                        sessionId === session.id ? "text-[#192f59]" : "text-gray-700"
+                                                                    )}
+                                                                >
+                                                                    <span className="truncate">{session.title}</span>
                                                                 </div>
                                                             </SidebarMenuButton>
                                                         </span>
                                                     </TooltipTrigger>
-                                                    <TooltipContent>{session.title}</TooltipContent>
+                                                    <TooltipContent side="right">{session.title}</TooltipContent>
                                                 </Tooltip>
 
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
                                                         <SidebarMenuAction>
-                                                            <MoreHorizontal className={cn(
-                                                                sessionId === session.id && "text-white group-hover/session:text-[#192f59] cursor-pointer"
-                                                            )} />
+                                                            <div className="p-1.5 hover:bg-gray-200 rounded-full transition-colors">
+                                                                <MoreHorizontal className="h-4 w-4 text-gray-500" />
+                                                            </div>
                                                         </SidebarMenuAction>
                                                     </DropdownMenuTrigger>
-                                                    <DropdownMenuContent side="right" align="start">
-                                                        <DropdownMenuItem onClick={async () => {
-                                                            if (!user) return;
-                                                            const { error } = await supabase.from("session").delete().eq("id", session.id)
-                                                            if (error) {
-                                                                console.error("Error deleting session:", error)
-                                                            }
-                                                            if (sessionId === session.id) {
-                                                                navigate("/chat")
-                                                            }
-                                                            setSessions((prev) => prev.filter((s) => s.id !== session.id))
-                                                            setGroups((prev) => {
-                                                                const newGroups = { ...prev }
-                                                                const groupSessions = newGroups[group]
-                                                                newGroups[group] = groupSessions.filter((s) => s.id !== session.id)
-                                                                return newGroups
-                                                            })
-                                                        }} className="text-xs text-[#192f59] font-medium cursor-pointer">
-                                                            <Trash2 />
-                                                            <span>Delete Project</span>
+                                                    <DropdownMenuContent side="right" align="start" className="w-48">
+                                                        <DropdownMenuItem
+                                                            onClick={async () => {
+                                                                if (!user) return;
+                                                                const { error } = await supabase.from("session").delete().eq("id", session.id)
+                                                                if (error) {
+                                                                    console.error("Error deleting session:", error)
+                                                                }
+                                                                if (sessionId === session.id) {
+                                                                    navigate("/chat")
+                                                                }
+                                                                setSessions((prev) => prev.filter((s) => s.id !== session.id))
+                                                            }}
+                                                            className="text-red-600 cursor-pointer focus:bg-red-50 focus:text-red-700"
+                                                        >
+                                                            <Trash2 className="h-4 w-4 mr-2" />
+                                                            <span>Delete Conversation</span>
                                                         </DropdownMenuItem>
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
@@ -262,10 +314,13 @@ export function AppSidebar() {
                                     </SidebarMenu>
                                 </SidebarGroupContent>
                             </SidebarGroup>
-                        ))
-                    }
+                        ))}
                 </SidebarContent>
-                <SidebarFooter />
+                <SidebarFooter className="p-3 border-t">
+                    <div className="text-xs text-center text-gray-500">
+                        <p>Lexin Chat © {new Date().getFullYear()}</p>
+                    </div>
+                </SidebarFooter>
             </TooltipProvider>
         </Sidebar>
     )

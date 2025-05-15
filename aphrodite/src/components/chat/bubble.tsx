@@ -97,8 +97,12 @@ function formatIEEEReference(doc: any, index: number): string {
     if (!doc) return "";
 
     const title = doc._source?.metadata?.Judul || "Untitled Document";
+    const jenis = doc._source?.metadata?.Jenis || "";
+    const nomor = doc._source?.metadata?.Nomor ? `No. ${doc._source?.metadata?.Nomor}` : "";
+    const tahun = doc._source?.metadata?.Tahun ? `Tahun ${doc._source?.metadata?.Tahun}` : "";
 
-    return `[${index}] ${title}.`;
+    // Construct a more complete IEEE style reference
+    return `[${index}] ${jenis} ${nomor} ${tahun}, "${title}."`;
 }
 
 export default function ChatBubble(props: ChatBubbleProps) {
@@ -243,23 +247,46 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                             })}
                                         </Markdown>
 
-                                        {/* Reference List in IEEE Format */}
+                                        {/* Reference List with Improved Styling */}
                                         {props.sender === "assistant" && sortedReferences.length > 0 && (
-                                            <div className="mt-4 pt-3 border-t border-gray-300 dark:border-gray-700">
-                                                <h4 className="font-semibold">Sumber:</h4>
-                                                <ul className="list-none pl-2 space-y-2 text-sm">
+                                            <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                                                <h4 className="font-semibold text-sm flex items-center gap-2 mb-3 text-[#192f59]">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-book-marked">
+                                                        <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>
+                                                        <polyline points="10 2 10 10 13 7 16 10 16 2"></polyline>
+                                                    </svg>
+                                                    Sumber Referensi
+                                                </h4>
+                                                <div className="grid grid-cols-1 gap-2">
                                                     {sortedReferences.map((ref, index) => (
-                                                        <li key={index} className="text-sm mb-2">
-                                                            <a
-                                                                href={getPdfUrl(ref.doc)}
-                                                                target="_blank"
-                                                                rel="noreferrer"
-                                                                className="text-[#192f59] font-semibold text-left cursor-pointer">
-                                                                {formatIEEEReference(ref.doc, ref.number)}
-                                                            </a>
-                                                        </li>
+                                                        <a
+                                                            key={index}
+                                                            href={getPdfUrl(ref.doc)}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group"
+                                                        >
+                                                            <div className="flex-shrink-0 w-6 h-6 rounded-full bg-[#192f59]/10 text-[#192f59] flex items-center justify-center text-xs font-bold">
+                                                                {ref.number}
+                                                            </div>
+                                                            <div className="flex-1 text-sm">
+                                                                <p className="font-medium text-[#192f59] leading-tight">
+                                                                    {ref.doc?._source?.metadata?.Judul || "Untitled Document"}
+                                                                </p>
+                                                                <p className="text-xs text-gray-500 mt-1">
+                                                                    {formatIEEEReference(ref.doc, ref.number)}
+                                                                </p>
+                                                            </div>
+                                                            <div className="flex-shrink-0 text-[#192f59] opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-external-link">
+                                                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                                                    <polyline points="15 3 21 3 21 9"></polyline>
+                                                                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                                                                </svg>
+                                                            </div>
+                                                        </a>
                                                     ))}
-                                                </ul>
+                                                </div>
                                             </div>
                                         )}
 

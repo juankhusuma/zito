@@ -1,0 +1,44 @@
+/* Add to your existing globals.css file */
+@import './animations.css';
+
+/* Add these Tailwind directives if they don't exist already */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Add these custom animation utilities */
+@layer utilities {
+    .animate-float {
+        animation: float 6s ease-in-out infinite;
+    }
+
+    .animate-wave {
+        animation: wave 8s ease-in-out infinite;
+    }
+
+    .animate-expand {
+        animation: expand 1.5s ease-out forwards;
+    }
+
+    .animate-gradient-x {
+        animation: gradient-x 15s ease infinite;
+        background-size: 200% 200%;
+    }
+
+    .animate-gradient-slow {
+        animation: gradient-slow 8s ease infinite;
+        background-size: 200% 200%;
+    }
+
+    .animate-fadeIn {
+        animation: fadeIn 1s ease-out forwards;
+    }
+
+    .animate-ping-small {
+        animation: ping-small 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+    }
+
+    .animate-bounce-horizontal {
+        animation: bounce-horizontal 1s infinite;
+    }
+}
