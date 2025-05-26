@@ -3,6 +3,19 @@ from typing import Any, Dict, List
 import os
 import json
 import requests
+import logging
+import time
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('/tmp/legal_search.log') if os.path.exists('/tmp') else logging.NullHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -56,9 +69,16 @@ def get_elasticsearch_auth() -> tuple:
     Returns:
         Tuple containing username and password
     """
+    logger.debug("Retrieving Elasticsearch authentication credentials")
     es_user = os.getenv("ELASTICSEARCH_USER")
     es_password = os.getenv("ELASTICSEARCH_PASSWORD")
-    return (es_user, es_password) if es_user and es_password else None
+    
+    if es_user and es_password:
+        logger.info("Elasticsearch credentials found")
+        return (es_user, es_password)
+    else:
+        logger.warning("Elasticsearch credentials not found in environment variables")
+        return None
 
 def legal_document_search(query: dict) -> List[Dict[str, Any]]:
     """
@@ -71,14 +91,23 @@ def legal_document_search(query: dict) -> List[Dict[str, Any]]:
     Returns:
         List of search results
     """
+    logger.info(f"Starting legal document search with query: {json.dumps(query, default=str)}")
+    start_time = time.time()
+    
     result = search_legal_documents_with_fallback(query)
+    
+    elapsed_time = time.time() - start_time
+    logger.info(f"Legal document search completed in {elapsed_time:.2f} seconds")
+    
     if "error" in result:
-        print(f"Search error: {result['error']}")
+        logger.error(f"Search error: {result['error']}")
         return []
-    return result.get("hits", [])
+    
+    hits = result.get("hits", [])
+    logger.info(f"Returning {len(hits)} search results")
+    return hits
 
 def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
-    print(search_query)
     """
     Advanced search tool for Gemini LLM to search legal documents with complete flexibility.
     The LLM can construct any valid Elasticsearch query and aggregations.
@@ -95,61 +124,96 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Complete Elasticsearch response with hits and aggregations
     """
+    logger.debug(f"Starting search_legal_documents with query: {json.dumps(search_query, default=str)}")
+    start_time = time.time()
+    
     url = "https://chat.lexin.cs.ui.ac.id/elasticsearch/peraturan_indonesia/_search" if not os.getenv("ELASTICSEARCH_URL") else os.getenv("ELASTICSEARCH_URL")
+    logger.info(f"Using Elasticsearch URL: {url}")
+    
     auth = get_elasticsearch_auth()
     headers = {"Content-Type": "application/json"}
     
     # Set defaults
-    search_query["size"] = 10
+    search_query["size"] = search_query.get("size", 10)
+    logger.debug(f"Search parameters - size: {search_query['size']}, from: {search_query.get('from', 0)}")
     
     try:
         # Execute the search using requests directly - don't wrap in another "query" object
         request_body = search_query
-        print(f"Sending request to Elasticsearch: {json.dumps(request_body, indent=2)}")
+        logger.debug(f"Sending request to Elasticsearch: {json.dumps(request_body, indent=2)}")
         
+        request_start = time.time()
         response = requests.post(
             url=url,
             auth=auth,
             headers=headers,
-            json=request_body
+            json=request_body,
+            timeout=30
         )
+        request_time = time.time() - request_start
+        
+        logger.info(f"Elasticsearch request completed in {request_time:.2f} seconds with status: {response.status_code}")
         
         if response.status_code != 200:
             error_msg = f"Elasticsearch returned status code {response.status_code}: {response.text}"
-            print(error_msg)
+            logger.error(error_msg)
             return {
                 "error": error_msg,
                 "message": "Failed to execute search query. Please check your query syntax."
             }
         
         data = response.json()
+        logger.debug(f"Raw Elasticsearch response: {json.dumps(data, default=str, indent=2)}")
         
         # Format the response to be more user-friendly
+        total_hits = data.get("hits", {}).get("total", {}).get("value", 0)
+        max_score = data.get("hits", {}).get("max_score")
+        
         formatted_response = {
-            "total_hits": data.get("hits", {}).get("total", {}).get("value", 0),
-            "max_score": data.get("hits", {}).get("max_score"),
+            "total_hits": total_hits,
+            "max_score": max_score,
             "hits": []
         }
         
+        logger.info(f"Search found {total_hits} total hits with max score: {max_score}")
+        
         # Process hits
-        for hit in data.get("hits", {}).get("hits", []):
+        for i, hit in enumerate(data.get("hits", {}).get("hits", [])):
             formatted_hit = {
                 "score": hit.get("_score"),
                 "id": hit.get("_id"),
                 "source": hit.get("_source", {})
             }
             formatted_response["hits"].append(formatted_hit)
+            logger.debug(f"Processed hit {i+1}: ID={hit.get('_id')}, Score={hit.get('_score')}")
         
         # Include aggregations if present
         if "aggregations" in data:
             formatted_response["aggregations"] = data["aggregations"]
+            logger.info(f"Response includes aggregations: {list(data['aggregations'].keys())}")
             
-        print(formatted_response)
+        elapsed_time = time.time() - start_time
+        logger.info(f"Search completed successfully in {elapsed_time:.2f} seconds")
+        
         return formatted_response
         
+    except requests.exceptions.Timeout:
+        error_msg = "Elasticsearch request timed out after 30 seconds"
+        logger.error(error_msg)
+        return {
+            "error": error_msg,
+            "message": "Search request timed out. Please try again or refine your query."
+        }
+    except requests.exceptions.ConnectionError:
+        error_msg = "Failed to connect to Elasticsearch"
+        logger.error(error_msg)
+        return {
+            "error": error_msg,
+            "message": "Unable to connect to search service. Please try again later."
+        }
     except Exception as e:
         error_msg = f"Failed to execute search query: {str(e)}"
-        print(error_msg)
+        logger.error(error_msg, exc_info=True)
         return {
             "error": error_msg,
             "message": "Failed to execute search query. Please check your query syntax."
@@ -165,22 +229,32 @@ def search_legal_documents_with_fallback(search_query: Dict[str, Any]) -> Dict[s
     Returns:
         Complete Elasticsearch response with hits and aggregations
     """
-    print(f"Initial search query: {search_query}")
+    logger.info(f"Starting search with fallback strategies")
+    logger.debug(f"Initial search query: {json.dumps(search_query, default=str)}")
+    start_time = time.time()
     
     # Try the original query first
+    logger.info("Attempting primary search query")
     result = search_legal_documents(search_query)
     
     # If we got results or there was an error, return as is
-    if "error" in result or result.get("total_hits", 0) > 0:
+    if "error" in result:
+        logger.warning(f"Primary search failed with error: {result['error']}")
         return result
     
-    print("No results found, trying fallback strategies...")
+    if result.get("total_hits", 0) > 0:
+        logger.info(f"Primary search successful: {result.get('total_hits')} results found")
+        return result
+    
+    logger.warning("No results found in primary search, initiating fallback strategies")
     
     # Extract the original query for fallback modifications
     original_query = search_query.get("query", {})
+    fallback_start = time.time()
     
     # Fallback 1: If it's a bool query, try with just the "should" clauses and lower minimum_should_match
     if "bool" in original_query:
+        logger.info("Trying fallback strategy 1: Relaxed boolean query")
         fallback_query = search_query.copy()
         bool_query = original_query["bool"].copy()
         
@@ -192,14 +266,19 @@ def search_legal_documents_with_fallback(search_query: Dict[str, Any]) -> Dict[s
                     "minimum_should_match": 1
                 }
             }
-            print("Trying fallback 1: Relaxed boolean query")
+            logger.debug(f"Fallback 1 query: {json.dumps(fallback_query, default=str)}")
             result = search_legal_documents(fallback_query)
             if result.get("total_hits", 0) > 0:
-                print(f"Fallback 1 successful: {result.get('total_hits')} results")
+                logger.info(f"Fallback 1 successful: {result.get('total_hits')} results found")
+                result["fallback_used"] = "relaxed_boolean"
                 return result
+        logger.debug("Fallback 1 failed or not applicable")
     
     # Fallback 2: Try a broader multi-field search if we can extract search terms
+    logger.info("Trying fallback strategy 2: Multi-field search")
     search_terms = _extract_search_terms(original_query)
+    logger.debug(f"Extracted search terms: {search_terms}")
+    
     if search_terms:
         fallback_query = {
             "query": {
@@ -218,14 +297,17 @@ def search_legal_documents_with_fallback(search_query: Dict[str, Any]) -> Dict[s
             },
             "size": search_query.get("size", 10)
         }
-        print(f"Trying fallback 2: Multi-field search with terms: {search_terms}")
+        logger.debug(f"Fallback 2 query: {json.dumps(fallback_query, default=str)}")
         result = search_legal_documents(fallback_query)
         if result.get("total_hits", 0) > 0:
-            print(f"Fallback 2 successful: {result.get('total_hits')} results")
+            logger.info(f"Fallback 2 successful: {result.get('total_hits')} results found")
+            result["fallback_used"] = "multi_field_fuzzy"
             return result
+        logger.debug("Fallback 2 failed")
     
     # Fallback 3: Very broad search across all text fields
     if search_terms:
+        logger.info("Trying fallback strategy 3: Query string search")
         fallback_query = {
             "query": {
                 "query_string": {
@@ -237,13 +319,16 @@ def search_legal_documents_with_fallback(search_query: Dict[str, Any]) -> Dict[s
             },
             "size": search_query.get("size", 10)
         }
-        print("Trying fallback 3: Query string search")
+        logger.debug(f"Fallback 3 query: {json.dumps(fallback_query, default=str)}")
         result = search_legal_documents(fallback_query)
         if result.get("total_hits", 0) > 0:
-            print(f"Fallback 3 successful: {result.get('total_hits')} results")
+            logger.info(f"Fallback 3 successful: {result.get('total_hits')} results found")
+            result["fallback_used"] = "query_string_broad"
             return result
+        logger.debug("Fallback 3 failed")
     
     # Fallback 4: Get recent documents if all else fails
+    logger.info("Trying fallback strategy 4: Recent documents")
     fallback_query = {
         "query": {
             "match_all": {}
@@ -254,19 +339,23 @@ def search_legal_documents_with_fallback(search_query: Dict[str, Any]) -> Dict[s
         ],
         "size": min(search_query.get("size", 10), 5)  # Limit to 5 recent docs
     }
-    print("Trying fallback 4: Recent documents")
+    logger.debug(f"Fallback 4 query: {json.dumps(fallback_query, default=str)}")
     result = search_legal_documents(fallback_query)
     if result.get("total_hits", 0) > 0:
-        print(f"Fallback 4 successful: {result.get('total_hits')} recent documents")
+        logger.info(f"Fallback 4 successful: {result.get('total_hits')} recent documents returned")
         result["fallback_used"] = "recent_documents"
         return result
     
-    print("All fallback strategies failed")
+    fallback_time = time.time() - fallback_start
+    total_time = time.time() - start_time
+    logger.error(f"All fallback strategies failed after {fallback_time:.2f}s (total: {total_time:.2f}s)")
+    
     return {
         "total_hits": 0,
         "max_score": None,
         "hits": [],
-        "message": "No documents found even with fallback strategies"
+        "message": "No documents found even with fallback strategies",
+        "fallback_used": "none"
     }
 
 def _extract_search_terms(query: Dict[str, Any]) -> List[str]:
@@ -279,6 +368,7 @@ def _extract_search_terms(query: Dict[str, Any]) -> List[str]:
     Returns:
         List of extracted search terms
     """
+    logger.debug(f"Extracting search terms from query: {json.dumps(query, default=str)}")
     terms = []
     
     def extract_from_dict(obj, path=""):
@@ -287,6 +377,7 @@ def _extract_search_terms(query: Dict[str, Any]) -> List[str]:
                 if key in ["query", "match", "match_phrase", "term"]:
                     if isinstance(value, str):
                         terms.append(value)
+                        logger.debug(f"Extracted term from {path}.{key}: '{value}'")
                     elif isinstance(value, dict):
                         extract_from_dict(value, f"{path}.{key}")
                 elif isinstance(value, (dict, list)):
@@ -298,9 +389,12 @@ def _extract_search_terms(query: Dict[str, Any]) -> List[str]:
             # Only add meaningful strings
             if not obj.strip().lower() in ["dan", "atau", "dengan", "yang", "di", "ke", "dari"]:
                 terms.append(obj.strip())
+                logger.debug(f"Extracted term: '{obj.strip()}'")
     
     extract_from_dict(query)
-    return list(set(terms))  # Remove duplicates
+    unique_terms = list(set(terms))  # Remove duplicates
+    logger.info(f"Extracted {len(unique_terms)} unique search terms: {unique_terms}")
+    return unique_terms
 
 def get_schema_information() -> str:
     """
@@ -365,11 +459,17 @@ def legal_search_rest_handler(request_body: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Search results
     """
+    logger.info(f"Processing REST API search request")
+    logger.debug(f"Request body: {json.dumps(request_body, default=str)}")
+    
     try:
         # Extract the query parameters
         query = request_body.get("query")
         if not query:
+            logger.error("Query parameter is missing from request")
             return {"error": "Query parameter is required"}
+        
+        logger.debug(f"Extracted query: {json.dumps(query, default=str)}")
         
         # Build search parameters
         search_params = {
@@ -378,24 +478,29 @@ def legal_search_rest_handler(request_body: Dict[str, Any]) -> Dict[str, Any]:
         }
         
         # Add optional parameters if present
-        if "from" in request_body:
-            search_params["from"] = request_body["from"]
+        optional_params = ["from", "sort", "aggs", "_source"]
+        for param in optional_params:
+            if param in request_body:
+                search_params[param] = request_body[param]
+                logger.debug(f"Added optional parameter {param}: {request_body[param]}")
         
-        if "sort" in request_body:
-            search_params["sort"] = request_body["sort"]
-            
-        if "aggs" in request_body:
-            search_params["aggs"] = request_body["aggs"]
-            
-        if "_source" in request_body:
-            search_params["_source"] = request_body["_source"]
+        logger.info(f"Built search parameters with size={search_params['size']}")
         
         # Execute the search with fallback
-        return search_legal_documents_with_fallback(search_params)
+        result = search_legal_documents_with_fallback(search_params)
+        
+        if "error" in result:
+            logger.error(f"REST handler search failed: {result['error']}")
+        else:
+            logger.info(f"REST handler search completed successfully with {result.get('total_hits', 0)} results")
+        
+        return result
     
     except Exception as e:
+        error_msg = f"Exception in REST handler: {str(e)}"
+        logger.error(error_msg, exc_info=True)
         return {
-            "error": str(e),
+            "error": error_msg,
             "message": "Failed to execute search query. Please check your query syntax."
         }
 
@@ -510,7 +615,7 @@ def example_queries() -> Dict[str, Dict[str, Any]]:
     }
 
 def __main__():
-    print("REST API Elasticsearch client initialized.")
+    logger.info("Initializing REST API Elasticsearch client")
     # Example usage
     sample_query = {
         "query": {
@@ -524,12 +629,14 @@ def __main__():
         "size": 5
     }
     
+    logger.info("Running sample query for testing")
     results = search_legal_documents(sample_query)
-    print(f"Found {results.get('total_hits', 0)} results")
+    logger.info(f"Sample query completed - found {results.get('total_hits', 0)} results")
+    
     if results.get('hits'):
-        print(f"First hit: {json.dumps(results.get('hits')[0], indent=2)}")
+        logger.debug(f"First hit: {json.dumps(results.get('hits')[0], indent=2, default=str)}")
     else:
-        print("No hits found.")
+        logger.warning("No hits found in sample query")
 
 if __name__ == "__main__":
     __main__()
