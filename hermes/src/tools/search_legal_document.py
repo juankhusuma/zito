@@ -95,7 +95,7 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Complete Elasticsearch response with hits and aggregations
     """
-    url = f"https://chat.lexin.cs.ui.ac.id/elasticsearch/peraturan_indonesia/_search"
+    url = "https://chat.lexin.cs.ui.ac.id/elasticsearch/peraturan_indonesia/_search" if not os.getenv("ELASTICSEARCH_URL") else os.getenv("ELASTICSEARCH_URL")
     auth = get_elasticsearch_auth()
     headers = {"Content-Type": "application/json"}
     
