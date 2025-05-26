@@ -19,9 +19,9 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthProvider>
       <MantineProvider>
-        <div className='flex flex-col justify-between min-h-[2vh]'>
+        <div className='min-h-screen flex flex-col'>
           <Navbar />
-          <div className='pt-5 flex-1'>
+          <div className='flex-1'>
             <BrowserRouter>
               <Routes>
                 <Route path="/" element={<Home />} />

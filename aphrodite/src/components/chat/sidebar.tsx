@@ -199,7 +199,7 @@ export function AppSidebar() {
     }, [searchQuery, groups]);
 
     return (
-        <Sidebar collapsible="offcanvas" className="absolute border-t h-full flex-1 bg-gray-100 shadow-sm z-[200]">
+        <Sidebar collapsible="offcanvas" className="absolute border-t h-full flex-1 bg-gray-100 shadow-sm z-[50]">
             <TooltipProvider>
                 <SidebarHeader className="p-3">
                     <div className="flex flex-col gap-3">

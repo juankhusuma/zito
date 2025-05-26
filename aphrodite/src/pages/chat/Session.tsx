@@ -204,7 +204,7 @@ export default function Session() {
 
     return (
         <div className='h-full w-full bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col'>
-            <ScrollArea ref={scrollAreaRef} className="w-full flex-1 px-4 md:px-8 lg:px-12 h-[100vh]">
+            <ScrollArea ref={scrollAreaRef} className="w-full flex-1 px-2 sm:px-4 md:px-8 lg:px-12 h-[100vh]">
                 {
                     (isPageLoading) ? (
                         Array.from({ length: 25 }).map((_, index) => (
@@ -219,12 +219,12 @@ export default function Session() {
                         ))
                     )
                         :
-                        (<div className="w-full max-w-4xl mx-auto py-6 mb-32">
+                        (<div className="w-full max-w-4xl mx-auto py-3 sm:py-6 mb-20 sm:mb-24 md:mb-32">
                             {memoizedChatList}
                         </div>)
                 }
             </ScrollArea>
-            <div className="sticky bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white to-transparent pt-6 pb-4 px-4 md:px-8 lg:px-12 z-10 mt-auto">
+            <div className="sticky bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white to-transparent pt-3 sm:pt-6 pb-2 sm:pb-4 px-2 sm:px-4 md:px-8 lg:px-12 z-10 mt-auto">
                 <form className="w-full max-w-4xl mx-auto"
                     onSubmit={async (e) => {
                         e.preventDefault()
@@ -273,26 +273,26 @@ export default function Session() {
                     }}
                 >
                     {!sessionId && (
-                        <div className="mb-4">
-                            <h3 className="text-sm font-medium text-gray-700 mb-2">Suggested questions:</h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto">
+                        <div className="mb-3 sm:mb-4">
+                            <h3 className="text-xs sm:text-sm font-medium text-gray-700 mb-2">Suggested questions:</h3>
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 max-h-24 sm:max-h-32 overflow-y-auto">
                                 {randomQuestions.map((question => (
                                     <Button
                                         key={question}
                                         variant="outline"
-                                        className="w-full py-3 px-4 cursor-pointer border border-[#192f59]/30 text-[#192f59] hover:bg-[#192f59]/10 hover:border-[#192f59] transition-all text-left justify-start rounded-lg"
+                                        className="w-full py-2 sm:py-3 px-3 sm:px-4 cursor-pointer border border-[#192f59]/30 text-[#192f59] hover:bg-[#192f59]/10 hover:border-[#192f59] transition-all text-left justify-start rounded-lg"
                                         onClick={async () => {
                                             await newSessionChat(question)
                                             scrollToBottom()
                                         }}
                                     >
-                                        <p className="text-wrap text-sm">{question}</p>
+                                        <p className="text-wrap text-xs sm:text-sm">{question}</p>
                                     </Button>
                                 )))}
                             </div>
                         </div>
                     )}
-                    <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden transition-all hover:shadow-xl">
+                    <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 overflow-hidden transition-all hover:shadow-xl">
                         <PromptInput
                             value={prompt}
                             onValueChange={(e) => setPrompt(e)}
@@ -302,7 +302,7 @@ export default function Session() {
                             <div className="flex flex-col">
                                 <PromptInputTextarea
                                     placeholder="Tanyakan pertanyaan Anda..."
-                                    className="min-h-[70px] py-4 px-5 focus:ring-0 focus-visible:ring-0 border-none resize-none text-base"
+                                    className="min-h-[60px] sm:min-h-[70px] py-3 sm:py-4 px-3 sm:px-5 focus:ring-0 focus-visible:ring-0 border-none resize-none text-sm sm:text-base"
                                     onKeyDown={(e) => {
                                         // Submit form when Enter is pressed without Shift key
                                         if (e.key === 'Enter' && !e.shiftKey) {
@@ -312,9 +312,12 @@ export default function Session() {
                                         }
                                     }}
                                 />
-                                <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-t border-gray-100">
-                                    <div className="text-xs text-gray-500">
+                                <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-3 bg-gray-50 border-t border-gray-100">
+                                    <div className="text-xs text-gray-500 hidden sm:block">
                                         Press <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-mono">Enter</kbd> to send, <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-mono">Shift+Enter</kbd> for new line
+                                    </div>
+                                    <div className="text-xs text-gray-500 sm:hidden">
+                                        <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-mono">Enter</kbd> to send
                                     </div>
                                     <PromptInputActions className="justify-end">
                                         <PromptInputAction
@@ -325,12 +328,12 @@ export default function Session() {
                                                 size="icon"
                                                 type="submit"
                                                 disabled={prompt.trim().length === 0}
-                                                className={`h-10 w-10 rounded-full shadow-md transition-all ${prompt.trim().length === 0 ? 'bg-gray-300' : 'bg-[#192f59] hover:bg-[#0d1e3f]'}`}
+                                                className={`h-8 w-8 sm:h-10 sm:w-10 rounded-full shadow-md transition-all ${prompt.trim().length === 0 ? 'bg-gray-300' : 'bg-[#192f59] hover:bg-[#0d1e3f]'}`}
                                             >
                                                 {isLoading ? (
-                                                    <Square className="size-4 fill-current" />
+                                                    <Square className="size-3 sm:size-4 fill-current" />
                                                 ) : (
-                                                    <ArrowUp className="size-4" />
+                                                    <ArrowUp className="size-3 sm:size-4" />
                                                 )}
                                             </Button>
                                         </PromptInputAction>

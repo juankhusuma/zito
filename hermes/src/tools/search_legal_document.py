@@ -49,17 +49,6 @@ ES_MAPPING_SCHEMA = {
     "catatan": "text (indonesian_analyzer)"
 }
 
-def get_elasticsearch_url() -> str:
-    """
-    Get the Elasticsearch URL from environment variables.
-    
-    Returns:
-        String containing the Elasticsearch URL
-    """
-    es_host = os.getenv("ELASTICSEARCH_HOST", "elasticsearch")
-    es_port = os.getenv("ELASTICSEARCH_PORT", "9200")
-    return f"http://{es_host}:{es_port}"
-
 def get_elasticsearch_auth() -> tuple:
     """
     Get the Elasticsearch authentication credentials from environment variables.
@@ -74,6 +63,7 @@ def get_elasticsearch_auth() -> tuple:
 def legal_document_search(query: dict) -> List[Dict[str, Any]]:
     """
     Basic search function for legal documents that returns results from Elasticsearch.
+    Now includes fallback strategies.
     
     Args:
         query: Elasticsearch query in dict format
@@ -81,84 +71,11 @@ def legal_document_search(query: dict) -> List[Dict[str, Any]]:
     Returns:
         List of search results
     """
-    url = f"{get_elasticsearch_url()}/peraturan_indonesia/_search"
-    auth = get_elasticsearch_auth()
-    headers = {"Content-Type": "application/json"}
-    
-    # The query should be directly included in the request body, not nested under a "query" key again
-    request_body = query
-    try:
-        print(f"Sending request to Elasticsearch: {json.dumps(request_body, indent=2)}")
-        response = requests.post(
-            url=url,
-            auth=auth,
-            headers=headers,
-            json=request_body
-        )
-        
-        if response.status_code != 200:
-            print(f"Elasticsearch error ({response.status_code}): {response.text}")
-            return []
-            
-        data = response.json()
-        print("Received response from Elasticsearch: ", len(data.get("hits", {}).get("hits", [])), " hits found.")
-        return data.get("hits", {}).get("hits", [])
-    except Exception as e:
-        print(f"Error searching Elasticsearch: {str(e)}")
+    result = search_legal_documents_with_fallback(query)
+    if "error" in result:
+        print(f"Search error: {result['error']}")
         return []
-
-def get_schema_information() -> str:
-    """
-    Returns information about the Elasticsearch schema for the LLM.
-    
-    Returns:
-        String containing schema documentation
-    """
-    schema_info = """
-    SKEMA DATA DOKUMEN HUKUM:
-    
-    metadata:
-      - Tipe Dokumen (keyword): Type of legal document (UU, PP, Perpres, etc.)
-      - Judul (text): Title of the document, searchable using Indonesian analyzer
-      - Nomor (keyword): Document number
-      - Bentuk (keyword): Document form (e.g., "Undang-Undang")
-      - Bentuk Singkat (keyword): Short form of document type (e.g., "UU")
-      - Tahun (keyword): Year of document
-      - Tempat Penetapan (keyword): Place of enactment
-      - Tanggal Penetapan (date): Date of enactment (format: yyyy-MM-dd)
-      - Tanggal Pengundangan (date): Date of promulgation (format: yyyy-MM-dd)
-      - Tanggal Berlaku (date): Effective date (format: yyyy-MM-dd)
-      - Status (keyword): Document status (e.g., "Berlaku", "Dicabut")
-      - Other metadata fields: T.E.U., Sumber, Subjek, Bahasa, Lokasi, Bidang
-    
-    relations (nested objects):
-      Common relation types:
-      - Mengubah: Documents that this document changes
-      - Diubah dengan: Documents that change this document
-      - Mencabut: Documents this document revokes
-      - Dicabut dengan: Documents that revoke this document
-      - Menetapkan: Documents this document establishes
-      - Ditetapkan dengan: Documents that establish this document
-      - Each relation contains: id, title, description, url
-    
-    files (nested):
-      - file_id (keyword): File identifier
-      - filename (text): Name of the file
-      - download_url (text): URL to download the file
-      - content (text): Content of the file, searchable using Indonesian analyzer
-    
-    abstrak (text): Abstract of the document, searchable using Indonesian analyzer
-    catatan (text): Notes about the document, searchable using Indonesian analyzer
-    
-    PANDUAN PENCARIAN:
-    1. Gunakan match untuk pencarian dasar teks
-    2. Gunakan match_phrase untuk pencarian frasa tepat
-    3. Gunakan nested untuk mencari dalam files.content atau relations
-    4. Gunakan bool dengan kombinasi must, should, filter untuk pencarian kompleks
-    5. Gunakan range untuk pencarian rentang tanggal
-    6. Gunakan aggs untuk mendapatkan statistik atau pengelompokan
-    """
-    return schema_info
+    return result.get("hits", [])
 
 def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
     print(search_query)
@@ -178,7 +95,7 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Complete Elasticsearch response with hits and aggregations
     """
-    url = f"{get_elasticsearch_url()}/peraturan_indonesia/_search"
+    url = f"https://chat.lexin.cs.ui.ac.id/elasticsearch/peraturan_indonesia/_search"
     auth = get_elasticsearch_auth()
     headers = {"Content-Type": "application/json"}
     
@@ -238,6 +155,206 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
             "message": "Failed to execute search query. Please check your query syntax."
         }
 
+def search_legal_documents_with_fallback(search_query: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Enhanced search with fallback strategies when initial search yields no results.
+    
+    Args:
+        search_query: A dictionary containing Elasticsearch query and options
+    
+    Returns:
+        Complete Elasticsearch response with hits and aggregations
+    """
+    print(f"Initial search query: {search_query}")
+    
+    # Try the original query first
+    result = search_legal_documents(search_query)
+    
+    # If we got results or there was an error, return as is
+    if "error" in result or result.get("total_hits", 0) > 0:
+        return result
+    
+    print("No results found, trying fallback strategies...")
+    
+    # Extract the original query for fallback modifications
+    original_query = search_query.get("query", {})
+    
+    # Fallback 1: If it's a bool query, try with just the "should" clauses and lower minimum_should_match
+    if "bool" in original_query:
+        fallback_query = search_query.copy()
+        bool_query = original_query["bool"].copy()
+        
+        # Remove filters and must clauses, keep only should
+        if "should" in bool_query:
+            fallback_query["query"] = {
+                "bool": {
+                    "should": bool_query["should"],
+                    "minimum_should_match": 1
+                }
+            }
+            print("Trying fallback 1: Relaxed boolean query")
+            result = search_legal_documents(fallback_query)
+            if result.get("total_hits", 0) > 0:
+                print(f"Fallback 1 successful: {result.get('total_hits')} results")
+                return result
+    
+    # Fallback 2: Try a broader multi-field search if we can extract search terms
+    search_terms = _extract_search_terms(original_query)
+    if search_terms:
+        fallback_query = {
+            "query": {
+                "multi_match": {
+                    "query": " ".join(search_terms),
+                    "fields": [
+                        "metadata.Judul^2",
+                        "abstrak^1.5", 
+                        "files.content",
+                        "metadata.Subjek",
+                        "catatan"
+                    ],
+                    "type": "best_fields",
+                    "fuzziness": "AUTO"
+                }
+            },
+            "size": search_query.get("size", 10)
+        }
+        print(f"Trying fallback 2: Multi-field search with terms: {search_terms}")
+        result = search_legal_documents(fallback_query)
+        if result.get("total_hits", 0) > 0:
+            print(f"Fallback 2 successful: {result.get('total_hits')} results")
+            return result
+    
+    # Fallback 3: Very broad search across all text fields
+    if search_terms:
+        fallback_query = {
+            "query": {
+                "query_string": {
+                    "query": " OR ".join(search_terms),
+                    "fields": ["*"],
+                    "default_operator": "OR",
+                    "fuzziness": "AUTO"
+                }
+            },
+            "size": search_query.get("size", 10)
+        }
+        print("Trying fallback 3: Query string search")
+        result = search_legal_documents(fallback_query)
+        if result.get("total_hits", 0) > 0:
+            print(f"Fallback 3 successful: {result.get('total_hits')} results")
+            return result
+    
+    # Fallback 4: Get recent documents if all else fails
+    fallback_query = {
+        "query": {
+            "match_all": {}
+        },
+        "sort": [
+            {"metadata.Tanggal Penetapan": {"order": "desc", "missing": "_last"}},
+            {"metadata.Tahun": {"order": "desc"}}
+        ],
+        "size": min(search_query.get("size", 10), 5)  # Limit to 5 recent docs
+    }
+    print("Trying fallback 4: Recent documents")
+    result = search_legal_documents(fallback_query)
+    if result.get("total_hits", 0) > 0:
+        print(f"Fallback 4 successful: {result.get('total_hits')} recent documents")
+        result["fallback_used"] = "recent_documents"
+        return result
+    
+    print("All fallback strategies failed")
+    return {
+        "total_hits": 0,
+        "max_score": None,
+        "hits": [],
+        "message": "No documents found even with fallback strategies"
+    }
+
+def _extract_search_terms(query: Dict[str, Any]) -> List[str]:
+    """
+    Extract search terms from various query types for fallback searches.
+    
+    Args:
+        query: Elasticsearch query object
+        
+    Returns:
+        List of extracted search terms
+    """
+    terms = []
+    
+    def extract_from_dict(obj, path=""):
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                if key in ["query", "match", "match_phrase", "term"]:
+                    if isinstance(value, str):
+                        terms.append(value)
+                    elif isinstance(value, dict):
+                        extract_from_dict(value, f"{path}.{key}")
+                elif isinstance(value, (dict, list)):
+                    extract_from_dict(value, f"{path}.{key}")
+        elif isinstance(obj, list):
+            for item in obj:
+                extract_from_dict(item, path)
+        elif isinstance(obj, str) and len(obj.strip()) > 2:
+            # Only add meaningful strings
+            if not obj.strip().lower() in ["dan", "atau", "dengan", "yang", "di", "ke", "dari"]:
+                terms.append(obj.strip())
+    
+    extract_from_dict(query)
+    return list(set(terms))  # Remove duplicates
+
+def get_schema_information() -> str:
+    """
+    Returns information about the Elasticsearch schema for the LLM.
+    
+    Returns:
+        String containing schema documentation
+    """
+    schema_info = """
+    SKEMA DATA DOKUMEN HUKUM:
+    
+    metadata:
+      - Tipe Dokumen (keyword): Type of legal document (UU, PP, Perpres, etc.)
+      - Judul (text): Title of the document, searchable using Indonesian analyzer
+      - Nomor (keyword): Document number
+      - Bentuk (keyword): Document form (e.g., "Undang-Undang")
+      - Bentuk Singkat (keyword): Short form of document type (e.g., "UU")
+      - Tahun (keyword): Year of document
+      - Tempat Penetapan (keyword): Place of enactment
+      - Tanggal Penetapan (date): Date of enactment (format: yyyy-MM-dd)
+      - Tanggal Pengundangan (date): Date of promulgation (format: yyyy-MM-dd)
+      - Tanggal Berlaku (date): Effective date (format: yyyy-MM-dd)
+      - Status (keyword): Document status (e.g., "Berlaku", "Dicabut")
+      - Other metadata fields: T.E.U., Sumber, Subjek, Bahasa, Lokasi, Bidang
+    
+    relations (nested objects):
+      Common relation types:
+      - Mengubah: Documents that this document changes
+      - Diubah dengan: Documents that change this document
+      - Mencabut: Documents this document revokes
+      - Dicabut dengan: Documents that revoke this document
+      - Menetapkan: Documents this document establishes
+      - Ditetapkan dengan: Documents that establish this document
+      - Each relation contains: id, title, description, url
+    
+    files (nested):
+      - file_id (keyword): File identifier
+      - filename (text): Name of the file
+      - download_url (text): URL to download the file
+      - content (text): Content of the file, searchable using Indonesian analyzer
+    
+    abstrak (text): Abstract of the document, searchable using Indonesian analyzer
+    catatan (text): Notes about the document, searchable using Indonesian analyzer
+    
+    PANDUAN PENCARIAN:
+    1. Gunakan match untuk pencarian dasar teks
+    2. Gunakan match_phrase untuk pencarian frasa tepat
+    3. Gunakan nested untuk mencari dalam files.content atau relations
+    4. Gunakan bool dengan kombinasi must, should, filter untuk pencarian kompleks
+    5. Gunakan range untuk pencarian rentang tanggal
+    6. Gunakan aggs untuk mendapatkan statistik atau pengelompokan
+    """
+    return schema_info
+
 def legal_search_rest_handler(request_body: Dict[str, Any]) -> Dict[str, Any]:
     """
     Handle a legal search request from the REST API.
@@ -273,8 +390,8 @@ def legal_search_rest_handler(request_body: Dict[str, Any]) -> Dict[str, Any]:
         if "_source" in request_body:
             search_params["_source"] = request_body["_source"]
         
-        # Execute the search
-        return search_legal_documents(search_params)
+        # Execute the search with fallback
+        return search_legal_documents_with_fallback(search_params)
     
     except Exception as e:
         return {

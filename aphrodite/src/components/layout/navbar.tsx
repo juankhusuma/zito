@@ -4,95 +4,124 @@ import { Icon } from "@iconify/react/dist/iconify.js";
 import { useAuth } from "@/hoc/AuthProvider";
 import { Skeleton } from "../ui/skeleton";
 import supabase from "@/common/supabase";
+import { useState } from "react";
 
 export default function Navbar() {
+    const [isOpen, setIsOpen] = useState(false);
+
     return (
-        <div>
-            <div className="flex justify-end px-8 xl:px-32 bg-[#192f59]">
-                <p className="bg-[#d61b23] text-white text-lg h-full flex py-3 xl:py-5 px-8 font-bold">Faculty of Computer Science</p>
+        <div className="w-full">
+            {/* Top bar */}
+            <div className="flex justify-end px-4 sm:px-8 xl:px-32 bg-[#192f59]">
+                <p className="bg-[#d61b23] text-white text-sm sm:text-lg h-full flex py-2 sm:py-3 xl:py-4 px-4 sm:px-8 font-bold">
+                    Faculty of Computer Science
+                </p>
             </div>
-            <header className="flex sticky top-0 w-full shrink-0 items-center md:px-6 text-[#163269]">
-                <Sheet>
-                    <SheetTrigger asChild>
-                        <div className="flex items-center gap-6 py-8">
-                            <Button variant="outline" size="icon" className="lg:hidden">
-                                <MenuIcon className="h-6 w-6" />
-                                <span className="sr-only">Toggle navigation menu</span>
-                            </Button>
-                            <a href="/" className="mr-6 lg:hidden w-full flex justify-center items-center flex-1">
-                                <img src="/logo-lexin.png" alt="lexin" width="300px" height="80px" />
-                            </a>
-                        </div>
-                    </SheetTrigger>
-                    <SheetContent side="left">
-                        <div className="grid gap-2 py-2">
-                            <a href="#" className="text-[#163269] flex w-full items-center py-2 text-lg font-semibold">
-                                Home
-                            </a>
-                            <a href="#" className="text-[#163269] flex w-full items-center py-2 text-lg font-semibold">
-                                About
-                            </a>
-                            <a href="#" className="text-[#163269] flex w-full items-center py-2 text-lg font-semibold">
-                                Services
-                            </a>
-                            <a href="#" className="text-[#163269] flex w-full items-center py-2 text-lg font-semibold">
-                                Contact
-                            </a>
-                        </div>
-                    </SheetContent>
-                </Sheet>
-                <div className="relative flex-1">
-                    <a href="/" className="hidden lg:flex xl:ml-32 ml-8">
-                        <img src="/logo-lexin.png" alt="lexin" width="400px" height="113px" />
-                    </a>
+
+            {/* Main navbar */}
+            <header className="sticky top-0 w-full bg-white shadow-sm border-b border-gray-200 z-50">
+                <div className="flex items-center justify-between px-4 sm:px-8 xl:px-32 py-4">
+                    {/* Logo */}
+                    <div className="flex-shrink-0">
+                        <a href="/" className="flex items-center">
+                            <img
+                                src="/logo-lexin.png"
+                                alt="lexin"
+                                className="h-12 sm:h-16 lg:h-20 w-auto"
+                            />
+                        </a>
+                    </div>
+
+                    {/* Desktop Navigation */}
+                    <nav className="hidden md:flex items-center space-x-8">
+                        <UserProfile />
+                    </nav>
+
+                    {/* Mobile menu button */}
+                    <div className="md:hidden">
+                        <Sheet open={isOpen} onOpenChange={setIsOpen}>
+                            <SheetTrigger asChild>
+                                <Button variant="ghost" size="sm">
+                                    <MenuIcon className="h-6 w-6 text-[#192f59]" />
+                                </Button>
+                            </SheetTrigger>
+                            <SheetContent side="right" className="w-[300px] sm:w-[400px]">
+                                <div className="flex flex-col space-y-6 mt-8">
+                                    <div className="pt-6 border-t border-gray-200">
+                                        <UserProfile mobile />
+                                    </div>
+                                </div>
+                            </SheetContent>
+                        </Sheet>
+                    </div>
                 </div>
-                <nav className="ml-auto hidden lg:flex my-16 flex-1 mr-8 xl:mr-32 gap-10">
-                    <div className="flex-1" />
-                    <UserProfile />
-                </nav>
             </header>
         </div>
     )
 }
 
-function UserProfile() {
+
+function UserProfile({ mobile = false }: { mobile?: boolean }) {
     const { loading, user, setLoading } = useAuth()
 
     if (loading) {
         return (
-            <div className="flex items-center space-x-2">
-                <Skeleton className="h-12 w-12 rounded-full" />
+            <div className={`flex items-center space-x-3 ${mobile ? 'justify-start' : ''}`}>
+                <Skeleton className="h-10 w-10 rounded-full" />
                 <div className="space-y-2">
-                    <Skeleton className="h-4 w-[200px]" />
-                    <Skeleton className="h-4 w-[180px]" />
+                    <Skeleton className="h-4 w-[150px]" />
+                    <Skeleton className="h-3 w-[120px]" />
                 </div>
             </div>
         )
     }
+
+    const containerClass = mobile
+        ? "flex flex-col space-y-4 p-5"
+        : "flex items-center space-x-3";
+
     return (
-        <a href={user ? "#" : "/login"} className="flex flex-row items-center">
-            <Icon icon="mdi:account-circle" style={{ fontSize: '40px', color: '#192f59' }} />
-            <div className="text-[#192f59] font-semibold ml-2">
-                {
-                    user
-                        ?
-                        <div className="flex flex-col items-start">
-                            <p>
-                                {`${user.email}`}
-                            </p>
-                            <p onClick={async () => {
-                                setLoading(true)
-                                await supabase.auth.signOut()
-                                setLoading(false)
-                            }} className="text-xs">
-                                Click here to logout
+        <div className={containerClass}>
+            {user ? (
+                <div className={`flex ${mobile ? 'flex-col space-y-3' : 'items-center space-x-3'}`}>
+                    <div className={`flex items-center ${mobile ? 'space-x-3' : 'space-x-2'}`}>
+                        <Icon
+                            icon="mdi:account-circle"
+                            className="text-[#192f59] text-3xl sm:text-4xl"
+                        />
+                        <div className="text-[#192f59] font-semibold">
+                            <p className={`${mobile ? 'text-lg' : 'text-sm sm:text-base'} truncate max-w-[180px]`}>
+                                {user.email}
                             </p>
                         </div>
-                        :
-                        <p>Login</p>
-                }
-            </div>
-        </a>
+                    </div>
+                    <Button
+                        variant="outline"
+                        size={mobile ? "default" : "sm"}
+                        onClick={async () => {
+                            setLoading(true)
+                            await supabase.auth.signOut()
+                            setLoading(false)
+                        }}
+                        className="text-[#192f59] border-[#192f59] hover:bg-[#192f59] hover:text-white transition-colors"
+                    >
+                        <Icon icon="mdi:logout" className="mr-2 h-4 w-4" />
+                        Logout
+                    </Button>
+                </div>
+            ) : (
+                <a
+                    href="/login"
+                    className="flex items-center space-x-2 text-[#192f59] hover:text-[#d61b23] transition-colors"
+                >
+                    <Icon
+                        icon="mdi:account-circle"
+                        className="text-3xl sm:text-4xl"
+                    />
+                    <span className="font-semibold">Login</span>
+                </a>
+            )}
+        </div>
     )
 }
 
