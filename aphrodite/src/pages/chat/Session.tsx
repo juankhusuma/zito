@@ -204,14 +204,14 @@ export default function Session() {
 
     return (
         <div className='h-full w-full bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col'>
-            <ScrollArea ref={scrollAreaRef} className="w-full flex-1 px-2 sm:px-4 md:px-8 lg:px-12 h-[100vh]">
+            <ScrollArea ref={scrollAreaRef} className="w-full flex-1 px-2 sm:px-4 md:px-8 lg:px-12 h-[500px]">
                 {
                     (isPageLoading) ? (
                         Array.from({ length: 25 }).map((_, index) => (
-                            <div className="w-full flex" style={{
+                            <div className="w-full flex max-w-4xl mx-auto" style={{
                                 justifyContent: Math.random() > 0.2 ? "flex-start" : "flex-end",
                             }} key={index}>
-                                <Skeleton key={index} className="w-full h-2 my-1" style={{
+                                <Skeleton key={index} className="w-full h-2 my-1 rounded-md" style={{
                                     width: `${Math.max(Math.random() * 50, 10)}%`,
                                     height: `${Math.max(Math.random() * 35, 25)}px`,
                                 }} />
@@ -274,7 +274,6 @@ export default function Session() {
                 >
                     {!sessionId && (
                         <div className="mb-3 sm:mb-4">
-                            <h3 className="text-xs sm:text-sm font-medium text-gray-700 mb-2">Suggested questions:</h3>
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 max-h-24 sm:max-h-32 overflow-y-auto">
                                 {randomQuestions.map((question => (
                                     <Button

@@ -116,7 +116,7 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
     print("🚀 Starting search_legal_documents...")
     print(f"📋 Raw search query: {json.dumps(search_query, default=str, indent=2)}")
     
-    url = "https://chat.lexin.cs.ui.ac.id/elasticsearch/peraturan_indonesia/_search" if not os.getenv("ELASTICSEARCH_URL") else os.getenv("ELASTICSEARCH_URL")
+    url = os.getenv("ELASTICSEARCH_URL", "https://chat.lexin.cs.ui.ac.id/elasticsearch/peraturan_indonesia/_search")
     print(f"🌐 Using Elasticsearch URL: {url}")
     
     print("🔐 Getting authentication...")

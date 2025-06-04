@@ -1,6 +1,12 @@
 import { Facebook, Linkedin, Twitter, Instagram, Mail, MapPin, Phone } from "lucide-react";
+import { useEffect, useState } from "react";
 
 export default function Footer() {
+    const [isChat, setIsChat] = useState(false)
+    useEffect(() => {
+        if (window.location.href.includes("/chat")) setIsChat(true);
+    }, [])
+    if (isChat) return null;
     return (
         <footer className="z-[100] relative overflow-hidden lg:mt-0">
             <div className="bg-gradient-to-r from-[#151b2c] to-[#1a2339] py-16 lg:py-20 px-6 md:px-10 lg:px-16">
