@@ -1,152 +1,158 @@
-# Hermes - Lexin Legal Document Search System
+# 🤖 Hermes - Legal Document Search Assistant
 
-Hermes is a specialized service within the Lexin chat-monorepo that provides legal document search capabilities through a sophisticated AI interface. It uses Google's Gemini AI models to process natural language queries and convert them into structured Elasticsearch queries for retrieving Indonesian legal documents.
+A Python-based AI assistant for searching and analyzing Indonesian legal documents using Elasticsearch and Google's Gemini model.
 
-## 📋 Table of Contents
+## 📚 Project Overview
 
-- [Overview](#overview)
-- [Architecture](#architecture)
-- [Environment Variables](#environment-variables)
-- [Tools and Components](#tools-and-components)
-- [System Flow](#system-flow)
-- [API Endpoints](#api-endpoints)
-- [Deployment](#deployment)
-- [Development](#development)
-
-## 🔭 Overview
-
-Hermes serves as the search backbone for Lexin, a legal information assistant focused on Indonesian law. It processes user queries about legal matters and searches through a comprehensive database of legal documents, including laws, regulations, and other legal texts.
-
-## 🏗️ Architecture
-
-```mermaid
-graph TD
-    User[User] --> |1. Sends query| API[FastAPI Service]
-    API --> |2. Processes query| Gemini[Google Gemini AI]
-    Gemini --> |3. Generates search query| ES[Elasticsearch]
-    ES --> |4. Returns documents| API
-    API --> |5. Formats & returns results| User
-    
-    subgraph "Hermes System"
-        API
-        Gemini
-        ES
-    end
-```
+Hermes is a sophisticated legal document search and analysis system that combines:
+- Elasticsearch for legal document storage and retrieval
+- Google's Gemini model for natural language understanding
+- RabbitMQ for message queuing
+- Supabase for user data and chat history
+- FastAPI for the REST API interface
 
 ## 🔐 Environment Variables
 
-| Variable Name     | Description                          | Expected Format         |
-|-------------------|--------------------------------------|-------------------------|
-| `GENAI_API_KEY`   | Google Gemini AI API key             | String                  |
-| `ELASTICSEARCH_HOST` | Elasticsearch host                | String (default: "elasticsearch") |
-| `ELASTICSEARCH_PORT` | Elasticsearch port                | Integer (default: 9200) |
-| `ELASTICSEARCH_USER` | Elasticsearch username (optional) | String                  |
-| `ELASTICSEARCH_PASSWORD` | Elasticsearch password (optional) | String              | 
-| `RABBITMQ_HOST`   | RabbitMQ host for messaging          | String (default: "rabbitmq") |
-| `HTTP_PROXY`      | HTTP proxy settings                  | URL                     |
-| `HTTPS_PROXY`     | HTTPS proxy settings                 | URL                     |
-| `NO_PROXY`        | No proxy settings                    | Comma-separated list    |
+| Variable | Description | Format |
+|----------|-------------|---------|
+| `ELASTICSEARCH_URL` | Elasticsearch endpoint | `https://host:port/index` |
+| `ELASTICSEARCH_USER` | Elasticsearch username | String |
+| `ELASTICSEARCH_PASSWORD` | Elasticsearch password | String |
+| `GENAI_API_KEY` | Google Gemini API key | String |
+| `RABBITMQ_HOST` | RabbitMQ server host | String |
+| `RABBITMQ_USER` | RabbitMQ username | String |
+| `RABBITMQ_PASS` | RabbitMQ password | String |
 
-## 🧰 Tools and Components
+## 🏗️ System Architecture
 
-### Search Engine
+```mermaid
+graph TD
+    Client[Client] -->|HTTP| API[FastAPI Service]
+    API -->|Publishes| Queue[RabbitMQ Queue]
+    Queue -->|Consumes| Consumer[Chat Consumer]
+    Consumer -->|Queries| ES[Elasticsearch]
+    Consumer -->|AI Processing| Gemini[Google Gemini]
+    Consumer -->|Stores Results| DB[Supabase DB]
+    
+    style Client fill:#f9f,stroke:#333
+    style API fill:#bbf,stroke:#333
+    style Queue fill:#bfb,stroke:#333
+    style Consumer fill:#fbf,stroke:#333
+    style ES fill:#ff9,stroke:#333
+    style Gemini fill:#9ff,stroke:#333
+    style DB fill:#f99,stroke:#333
+```
 
-The system uses Elasticsearch to index and search through legal documents with a specialized schema:
-
-- **Metadata**: Document type, title, number, year, status, etc.
-- **Relations**: Document relationships (amends, revokes, etc.)
-- **Content**: Full text of legal documents
-- **Abstracts**: Document summaries
-- **Notes**: Additional information about the documents
-
-### AI Components
-
-- **Query Processing**: Google Gemini 2.0 Flash model processes natural language questions
-- **Tool Calling**: The AI uses specialized tools to:
-  - Search legal documents
-  - Get schema information
-  - Access example queries
-
-## 🔄 System Flow
+## 🔄 Message Flow
 
 ```mermaid
 sequenceDiagram
     participant User
-    participant API as FastAPI Service
-    participant Gemini as Google Gemini AI
-    participant ES as Elasticsearch
-    
-    User->>API: Ask legal question
-    API->>Gemini: Process question
-    Note over Gemini: Analyze question using Chain of Thought
-    Gemini->>Gemini: get_schema_information()
-    Gemini->>Gemini: example_queries()
-    Gemini->>ES: legal_document_search(query)
-    ES-->>Gemini: Document results
-    Gemini->>ES: Additional searches (if needed)
-    ES-->>Gemini: More document results
-    Gemini->>API: Synthesize comprehensive answer
-    API->>User: Return formatted legal information
+    participant API
+    participant Queue
+    participant Consumer
+    participant ES
+    participant Gemini
+    participant DB
+
+    User->>API: Send question
+    API->>Queue: Publish message
+    Queue->>Consumer: Consume message
+    Consumer->>Gemini: Evaluate question
+    Consumer->>ES: Search documents
+    ES-->>Consumer: Return results
+    Consumer->>Gemini: Generate answer
+    Consumer->>DB: Store chat history
+    Consumer-->>User: Return response
 ```
 
-### Search Process
-
-1. **Query Analysis**: The system analyzes the user's legal question
-2. **Query Generation**: Converts to structured Elasticsearch query
-3. **Document Retrieval**: Fetches relevant legal documents
-4. **Relationship Tracking**: Examines document relationships
-5. **Information Synthesis**: Compiles comprehensive answer
-
-## 🚢 Deployment
-
-Hermes is containerized using Docker and includes the following configuration:
-
-- Python 3.12.3 base image
-- Two-stage build for smaller image size
-- Non-privileged user for security
-- Environment variables for proxy settings
-- Exposed port 8000 for the FastAPI application
-- Multiple workers (4) for handling concurrent requests
-
-## 💻 Development
-
-### Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/your-org/lexin-chat-monorepo.git
-
-# Navigate to the hermes directory
-cd lexin-chat-monorepo/hermes
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run the application
-uvicorn src.app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-### Project Structure
+## 📁 Project Structure
 
 ```
 hermes/
 ├── src/
-│   ├── app/
-│   │   └── main.py         # Main FastAPI application entry point
+│   ├── tools/
+│   │   ├── search_legal_document.py  # Elasticsearch search functionality
+│   │   └── toolcall.py              # Gemini tool integration
+│   ├── consumer/
+│   │   └── chat_consumer.py         # RabbitMQ message consumer
 │   ├── config/
-│   │   └── llm.py          # LLM configuration and prompts
-│   └── tools/
-│       ├── toolcall.py     # Tool calling implementation for Gemini
-│       └── search_legal_document.py  # Elasticsearch search functionality
-├── requirements.txt        # Python dependencies
-├── Dockerfile              # Docker configuration
-└── README.md               # This documentation
+│   │   └── llm.py                   # LLM configuration and prompts
+│   ├── common/
+│   │   ├── gemini_client.py         # Gemini API client
+│   │   └── supabase_client.py       # Supabase client
+│   └── model/
+│       └── search.py                # Data models
+└── requirements.txt                 # Project dependencies
 ```
 
-### Key Components
+## 🔍 Core Components
 
-- **FastAPI Application**: Handles HTTP requests and responses
-- **Google Gemini Integration**: Processes natural language and generates structured queries
-- **Elasticsearch Client**: Searches the legal document database
-- **System Prompts**: Guide the AI's behavior for legal search and response generation
+### Legal Document Search
+
+The search system uses a sophisticated fallback strategy:
+1. Primary search with exact query
+2. Relaxed boolean search
+3. Multi-field fuzzy search
+4. Broad query string search
+5. Recent documents as fallback
+
+### Question Processing
+
+```mermaid
+flowchart TD
+    A[User Question] -->|Evaluation| B{Need Search?}
+    B -->|Yes| C[Document Search]
+    B -->|No| G[Direct Answer]
+    C -->|Results| D[Answer Generation]
+    D -->|Draft| E[Final Response]
+    G -->|Direct| E
+    E -->|Store| F[Chat History]
+```
+
+## 🛠️ Setup & Installation
+
+1. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+2. Configure environment variables (see table above)
+
+3. Start the RabbitMQ consumer:
+```bash
+python -m src.consumer.chat_consumer
+```
+
+## 📝 API Documentation
+
+### Chat Endpoint
+
+Processes user questions and returns AI-generated responses with legal document citations.
+
+**Request:**
+```json
+{
+    "messages": [{"role": "user", "content": "Question text"}],
+    "session_uid": "session-id",
+    "user_uid": "user-id",
+    "access_token": "jwt-token",
+    "refresh_token": "refresh-token"
+}
+```
+
+**Response:**
+```json
+{
+    "content": "AI response with citations",
+    "documents": ["Referenced legal documents"],
+    "state": "done"
+}
+```
+
+## 🤝 Contributing
+
+1. Follow Python code style guidelines
+2. Add comprehensive docstrings
+3. Test thoroughly before submitting PRs
+4. Update documentation as needed

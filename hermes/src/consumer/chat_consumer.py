@@ -100,13 +100,20 @@ class ChatConsumer:
         if message_id:
             return ChatConsumer.__stream_answer_user(context, message_id, documents)
         else:
-            return gemini_client.models.generate_content(
+            res = gemini_client.models.generate_content(
                 model=MODEL_NAME,
                 contents=context,
                 config=types.GenerateContentConfig(
                     system_instruction=CHATBOT_SYSTEM_PROMPT,
                 ),
             )
+            # Update the database with the final content
+            supabase.table("chat").update({
+                "content": res.text,
+                "state": "done",
+                "documents": json.dumps(documents, indent=2) if documents else "[]",
+            }).eq("id", message_id).execute()
+            return res
 
     @staticmethod
     def __stream_answer_user(context: History, message_id: str, documents: list[dict]):
@@ -390,7 +397,7 @@ class ChatConsumer:
 
             # Step 4: Generate final response with streaming and retry
             try:
-                res = ChatConsumer.__retry_with_exponential_backoff(
+                ChatConsumer.__retry_with_exponential_backoff(
                     ChatConsumer.__safe_answer_user,
                     max_attempts=4,
                     base_delay=2,
