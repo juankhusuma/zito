@@ -2,6 +2,7 @@ from pydantic import BaseModel
 
 class Questions(BaseModel):
     is_sufficient: bool
+    classification: str
     questions: list[str]
 
 class QnA(BaseModel):

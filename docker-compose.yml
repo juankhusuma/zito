@@ -1,37 +1,37 @@
 services:
-  aphrodite:
-    image: lexincsui/chat:aphrodite
-    container_name: aphrodite
-    restart: always
-    ports:
-      - 5000:80
-    env_file:
-      - ./aphrodite/.env
-    depends_on:
-      - chronos
+  # aphrodite:
+  #   image: lexincsui/chat:aphrodite
+  #   container_name: aphrodite
+  #   restart: always
+  #   ports:
+  #     - 5000:80
+  #   env_file:
+  #     - ./aphrodite/.env
+  #   depends_on:
+  #     - chronos
 
-  chronos:
-    image: lexincsui/chat:chronos
-    container_name: chronos
-    restart: always
-    ports:
-      - 8080:8000
-    env_file:
-      - ./chronos/.env
-    depends_on:
-      - rabbitmq
+  # chronos:
+  #   image: lexincsui/chat:chronos
+  #   container_name: chronos
+  #   restart: always
+  #   ports:
+  #     - 8080:8000
+  #   env_file:
+  #     - ./chronos/.env
+  #   depends_on:
+  #     - rabbitmq
 
-  hermes:
-    image: lexincsui/chat:hermes
-    deploy:
-      replicas: 4
-      restart_policy:
-        condition: any
-    env_file:
-      - ./hermes/.env
-    depends_on:
-      - rabbitmq
-      - elasticsearch
+  # hermes:
+  #   image: lexincsui/chat:hermes
+  #   deploy:
+  #     replicas: 4
+  #     restart_policy:
+  #       condition: any
+  #   env_file:
+  #     - ./hermes/.env
+  #   depends_on:
+  #     - rabbitmq
+  #     - elasticsearch
 
   rabbitmq:
     image: rabbitmq:4-management-alpine
@@ -43,25 +43,12 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
-    configs:
-      - source: rabbitmq-plugins
-        target: /etc/rabbitmq/enabled_plugins
+    # configs:
+    #   - source: rabbitmq-plugins
+    #     target: /etc/rabbitmq/enabled_plugins
     volumes:
       - rabbitmq-lib:/var/lib/rabbitmq/
       - rabbitmq-log:/var/log/rabbitmq
-
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_volume:/root/.ollama
-    tty: true
-    restart: always
-    environment:
-      - OLLAMA_KEEP_ALIVE=24h
-      - OLLAMA_HOST=0.0.0.0
 
   # db:
   #   image: pgvector/pgvector:pg17
@@ -97,9 +84,9 @@ services:
     ports:
       - 5601:5601
 
-configs:
-  rabbitmq-plugins:
-    content: "[rabbitmq_management]."
+# configs:
+#   rabbitmq-plugins:
+#     content: "[rabbitmq_management]."
 
 volumes:
   rabbitmq-lib:

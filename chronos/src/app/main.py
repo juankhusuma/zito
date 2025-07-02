@@ -1,10 +1,9 @@
 from fastapi import FastAPI, APIRouter
 from asyncio import get_running_loop
-from ..router.chat import router as chat_router  # Use relative import
+from ..router.chat import router as chat_router
 from fastapi.middleware.cors import CORSMiddleware
-from ..producer.chat_producer import ChatProducer  # Use relative import
+from ..producer.chat_producer import ChatProducer
 from contextlib import asynccontextmanager
-# from fastapi_utilities import repeat_every
 import logging
 
 router = APIRouter()
@@ -18,17 +17,7 @@ async def lifespan(app: FastAPI):
     handler = logging.StreamHandler()
     handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
     logger.addHandler(handler)
-    
-    # Setup periodic task with repeat_every
-    # @repeat_every(seconds=3)
-    # async def print_hello():
-    #     print("hello")
-    
-    # task = loop.create_task(print_hello())
-    
     yield
-    # if not task.done():
-    #     task.cancel()
 
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(

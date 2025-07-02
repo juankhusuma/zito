@@ -272,6 +272,19 @@ Sufficient Criteria:
 5. Is the information current and applicable to the user's question? If yes, output is_sufficient = false
 6. If the information is sufficient, output is_sufficient = true
 7. If the information is not sufficient, output is_sufficient = false
+
+Classification Criteria:
+if the user try to find a specific KUHP content or hints that they want to find a specific KUHP content, return classification = "kuhp", set is_sufficient = false
+if the user try to find a specific legal document, return classification = "legal_document"
+
+Question List:
+Don't try to figure out what the user is trying to find out, but what kind of answer will satisfy the user, for example:
+1. aturan KUHP tentang pembunuhan
+- pasal KUHP apa yang membahas pembunuhan?
+- apa saja jenis pembunuhan?
+
+Tolong pertanyaan dibuat HANYA dalam bahasa Indonesia jangan gunakan bahasa lain.
+etc.
 """
 
 ANSWERING_AGENT_PROMPT = lambda docs, questions : f"""
@@ -426,6 +439,232 @@ We removed a filter! If still not working, then:
 }}
 
 We simplify the keywords but still keeping it relevant to the original!!!
+"""
+
+SEARCH_KUHP_AGENT_PROMPT = """
+You are an expert Elasticsearch query generator for Indonesian legal documents.
+
+# Instructions
+- All documents have the field "pasal" with the format: "Pasal <number>".
+- If the user query specifies a particular pasal (e.g., "Pasal 2" or "Pasal 2 ayat (1)"), generate a bool query with "should" that matches the "pasal" field (with boost 3) and the "content" field for ayat/verse references.
+- If the user query does NOT specify any specific pasal or ayat, generate the simplest possible query: just match the "content" field with the most relevant keyword or phrase from the user's question (e.g. "pencurian", "mencuri", "pembunuhan").
+- If the user query is vague, ambiguous, or only contains general words (e.g. "jelaskan", "aturan", "pasal"), use a match query on "content" with the most likely relevant general keyword (e.g. "pidana", "aturan umum").
+- If the user query is empty or only contains stopwords, return a match_all query.
+- If the user query contains multiple relevant keywords (e.g. "pencurian" dan "kekerasan"), use a bool query with "should" for each keyword in "content".
+- Do not include explanations or comments.
+- Always return a valid JSON object only.
+
+# Examples
+
+## Example 1
+User: Apa isi Pasal 2?
+Chain of Thought:
+- The user wants Article 2.
+- Match "pasal" with boost, and also match "content" for possible ayat references.
+
+Output:
+{
+  "query": {
+    "bool": {
+      "should": [
+        {
+          "match": {
+            "pasal": {
+              "query": "Pasal 2",
+              "boost": 3
+            }
+          }
+        },
+        {
+          "match": {
+            "content": {
+              "query": "(2) ayat 2"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+## Example 2
+User: Apa isi Pasal 2 ayat (1)?
+Chain of Thought:
+- The user wants Article 2, verse (1).
+- Match "pasal" with boost, and also match "content" for ayat (1).
+
+Output:
+{
+  "query": {
+    "bool": {
+      "should": [
+        {
+          "match": {
+            "pasal": {
+              "query": "Pasal 2 ayat (1)",
+              "boost": 3
+            }
+          }
+        },
+        {
+          "match": {
+            "content": {
+              "query": "(1) ayat 1"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+## Example 3
+User: Apa aturan tentang pembunuhan?
+Chain of Thought:
+- No specific pasal or ayat mentioned.
+- Only match "content" field with the main keyword.
+
+Output:
+{
+  "query": {
+    "match": {
+      "content": "pembunuhan"
+    }
+  }
+}
+
+## Example 4
+User: jika saya mencuri ayam, aturan apa yang menghukum saya?
+Chain of Thought:
+- No specific pasal or ayat mentioned.
+- Use the simplest possible query: match "content" with the most relevant keyword, e.g. "pencurian" or "mencuri".
+
+Output:
+{
+  "query": {
+    "match": {
+      "content": "pencurian"
+    }
+  }
+}
+
+## Example 5
+User: Apa sanksi untuk penipuan?
+Chain of Thought:
+- No specific pasal or ayat mentioned.
+- Use the simplest possible query: match "content" with "penipuan".
+
+Output:
+{
+  "query": {
+    "match": {
+      "content": "penipuan"
+    }
+  }
+}
+
+## Example 6
+User: Pasal berapa yang mengatur tentang penganiayaan berat?
+Chain of Thought:
+- No specific pasal or ayat mentioned.
+- Use the simplest possible query: match "content" with "penganiayaan berat".
+
+Output:
+{
+  "query": {
+    "match": {
+      "content": "penganiayaan berat"
+    }
+  }
+}
+
+## Example 7
+User: Apa isi Pasal 362?
+Chain of Thought:
+- The user wants Article 362.
+- Match "pasal" with boost, and also match "content" for possible ayat references.
+
+Output:
+{
+  "query": {
+    "bool": {
+      "should": [
+        {
+          "match": {
+            "pasal": {
+              "query": "Pasal 362",
+              "boost": 3
+            }
+          }
+        },
+        {
+          "match": {
+            "content": {
+              "query": "(362) ayat 362"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+## Example 8
+User: Jelaskan aturan umum!
+Chain of Thought:
+- The query is vague/general.
+- Use a match query on "content" with "aturan umum".
+
+Output:
+{
+  "query": {
+    "match": {
+      "content": "aturan umum"
+    }
+  }
+}
+
+## Example 9
+User: 
+Chain of Thought:
+- The query is empty.
+- Use match_all.
+
+Output:
+{
+  "query": {
+    "match_all": {}
+  }
+}
+
+## Example 10
+User: pencurian dan kekerasan
+Chain of Thought:
+- Multiple relevant keywords.
+- Use a bool query with "should" for each keyword.
+
+Output:
+{
+  "query": {
+    "bool": {
+      "should": [
+        { "match": { "content": "pencurian" } },
+        { "match": { "content": "kekerasan" } }
+      ]
+    }
+  }
+}
+
+DO NOT GENERATE THE MARKDOWN FORMATTING JUST RETURN THE OBJECT
+
+THE OBJECT ONLY
+
+IT WILL BE PUT INTO JSON.parse
+
+if the string you're returning isn't a valid query or json it will crash and i and you will be severely punished!!!
+
+# Now, generate the Elasticsearch query for the following user question:
+User: {user_question}
 """
 
 MODEL_NAME = "gemini-2.0-flash"
