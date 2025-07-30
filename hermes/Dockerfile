@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Build stage
-FROM python:3.12.3-slim AS builder
+FROM python:3.14.0rc1-slim AS builder
 
 # Prevents Python from writing pyc files and keeps Python from buffering stdout and stderr
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -20,7 +20,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip wheel --no-cache-dir --wheel-dir /app/wheels -r requirements.txt
 
 # Final stage
-FROM python:3.12.3-slim
+FROM python:3.14.0rc1-slim
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
