@@ -4,14 +4,14 @@ import time
 import requests
 from typing import Dict, Any, List
 from src.common.gemini_client import client as gemini_client
-from src.common.pinecone_client import kuhp_index
+from src.common.pinecone_client import kuhper_index
 
-def kuhp_document_search(query: dict) -> List[Dict[str, Any]]:
+def kuhper_document_search(query: dict) -> List[Dict[str, Any]]:
     print("🔍 Starting legal_document_search...")
     print(f"📝 Input query: {json.dumps(query, default=str, indent=2)}")
     
     start_time = time.time()
-    result = search_kuhp_documents_with_fallback(query)
+    result = search_kuhper_documents_with_fallback(query)
     elapsed = time.time() - start_time
     
     print(f"⏱️ legal_document_search completed in {elapsed:.2f} seconds")
@@ -28,7 +28,7 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
     print("🚀 Starting search_legal_documents...")
     print(f"📋 Raw search query: {json.dumps(search_query, default=str, indent=2)}")
     
-    url = os.getenv("ELASTICSEARCH_URL", "https://search.litsindonesia.com/kuhp_bm25/_search")
+    url = "https://chat.lexin.cs.ui.ac.id/elasticsearch/kuhper/_search"
     print(f"🌐 Using Elasticsearch URL: {url}")
     
     print("🔐 Getting authentication...")
@@ -52,6 +52,7 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
             url=url,
             headers=headers,
             json=request_body,
+            auth=("elastic", "password"),
             timeout=30
         )
         
@@ -140,7 +141,7 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
             "message": "Failed to execute search query. Please check your query syntax."
         }
     
-def search_dense_kuhp_documents(query: str, top_k: int = 10) -> List[Dict[str, Any]]:
+def search_dense_kuhper_documents(query: str, top_k: int = 10) -> List[Dict[str, Any]]:
     embed_res = gemini_client.models.embed_content(
         model="text-embedding-004",
         contents=[query]
@@ -149,7 +150,7 @@ def search_dense_kuhp_documents(query: str, top_k: int = 10) -> List[Dict[str, A
     print(f"🔍 Embedding generated for query: {embeddings[:5]}... (total {len(embeddings)} dimensions)")
 
     print(f"📦 Searching Pinecone index for top {top_k} documents...")
-    response = kuhp_index.query(
+    response = kuhper_index.query(
         vector=embeddings,
         top_k=top_k,
         include_values=True,
@@ -159,7 +160,7 @@ def search_dense_kuhp_documents(query: str, top_k: int = 10) -> List[Dict[str, A
 
     return response.to_dict()
 
-def search_kuhp_documents_with_fallback(search_query: Dict[str, Any]) -> Dict[str, Any]:
+def search_kuhper_documents_with_fallback(search_query: Dict[str, Any]) -> Dict[str, Any]:
     print("🔄 Starting search_legal_documents_with_fallback...")
     print(f"📋 Initial search query: {json.dumps(search_query, default=str, indent=2)}")
     

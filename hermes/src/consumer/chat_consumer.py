@@ -29,7 +29,6 @@ class ChatConsumer:
     async def process_message(message):
         await message.ack()
         body = json.loads(message.body.decode("utf-8"))
-        
         message_ref = None
         try:
             history = MessageHandler.serialize_message(body["messages"])

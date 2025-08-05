@@ -275,6 +275,8 @@ Sufficient Criteria:
 
 Classification Criteria:
 if the user try to find a specific KUHP content or hints that they want to find a specific KUHP content, return classification = "kuhp", set is_sufficient = false
+if the user try to find a specific KUHP Perdata content or hints that they want to find a specific KUHP Perdata content, return classification = "kuhper", set is_sufficient = false
+if the user try to find a specific Undang-Undang content or hints that they want to find a specific Undang-Undang content, return classification = "undang_undang", set is_sufficient = false
 if the user try to find a specific legal document, return classification = "legal_document"
 
 Question List:
@@ -439,6 +441,209 @@ We removed a filter! If still not working, then:
 }}
 
 We simplify the keywords but still keeping it relevant to the original!!!
+"""
+
+SEARCH_KUHPER_AGENT_PROMPT = """
+You are an expert Elasticsearch query generator for Indonesian Civil Code (KUHPerdata) documents.
+
+# Index Structure
+Each document in the "kuhper" index has the following fields:
+- "content": The main text of the article/pasal.
+- "references": List of related pasal numbers (as strings).
+- "bab_id": Integer, the chapter number.
+- "bab_content": String, the chapter title.
+- "buku_id": Integer, the book number.
+- "buku_content": String, the book title.
+
+# Instructions
+- If the user query mentions a specific pasal (e.g., "Pasal 2" or "Pasal 2 ayat (1)"), generate a bool query with "should" that matches "_id" (the pasal number as string, with boost 3) and "content" for ayat/verse references.
+- If the user query does NOT specify a pasal or ayat, generate a match query on "content" with the most relevant keyword or phrase from the user's question (e.g. "perkawinan", "kewargaan", "catatan sipil").
+- If the user query is vague, ambiguous, or only contains general words (e.g. "jelaskan", "aturan", "pasal"), use a match query on "content" with the most likely relevant general keyword (e.g. "perdata", "aturan umum").
+- If the user query is empty or only contains stopwords, return a match_all query.
+- If the user query contains multiple relevant keywords (e.g. "perkawinan" dan "perceraian"), use a bool query with "should" for each keyword in "content".
+- Do not include explanations or comments.
+- Always return a valid JSON object only.
+
+# Examples
+
+## Example 1
+User: Apa isi Pasal 2?
+Chain of Thought:
+- The user wants Article 2.
+- Match "_id" with boost, and also match "content" for possible ayat references.
+
+Output:
+{
+  "query": {
+    "bool": {
+      "should": [
+        {
+          "match": {
+            "_id": {
+              "query": "2",
+              "boost": 3
+            }
+          }
+        },
+        {
+          "match": {
+            "content": {
+              "query": "Pasal 2"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+## Example 2
+User: Apa isi Pasal 2 ayat (1)?
+Chain of Thought:
+- The user wants Article 2, verse (1).
+- Match "_id" with boost, and also match "content" for ayat (1).
+
+Output:
+{
+  "query": {
+    "bool": {
+      "should": [
+        {
+          "match": {
+            "_id": {
+              "query": "2",
+              "boost": 3
+            }
+          }
+        },
+        {
+          "match": {
+            "content": {
+              "query": "ayat (1)"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+## Example 3
+User: Apa aturan tentang perkawinan?
+Chain of Thought:
+- No specific pasal or ayat mentioned.
+- Only match "content" field with the main keyword.
+
+Output:
+{
+  "query": {
+    "match": {
+      "content": "perkawinan"
+    }
+  }
+}
+
+## Example 4
+User: jika saya ingin mengganti nama, aturan apa yang berlaku?
+Chain of Thought:
+- No specific pasal or ayat mentioned.
+- Use the simplest possible query: match "content" with the most relevant keyword, e.g. "nama" or "ganti nama".
+
+Output:
+{
+  "query": {
+    "match": {
+      "content": "ganti nama"
+    }
+  }
+}
+
+## Example 5
+User: Apa sanksi untuk pegawai catatan sipil?
+Chain of Thought:
+- No specific pasal or ayat mentioned.
+- Use the simplest possible query: match "content" with "catatan sipil".
+
+Output:
+{
+  "query": {
+    "match": {
+      "content": "catatan sipil"
+    }
+  }
+}
+
+## Example 6
+User: Pasal berapa yang mengatur tentang anak sah?
+Chain of Thought:
+- No specific pasal or ayat mentioned.
+- Use the simplest possible query: match "content" with "anak sah".
+
+Output:
+{
+  "query": {
+    "match": {
+      "content": "anak sah"
+    }
+  }
+}
+
+## Example 7
+User: Jelaskan aturan umum!
+Chain of Thought:
+- The query is vague/general.
+- Use a match query on "content" with "aturan umum".
+
+Output:
+{
+  "query": {
+    "match": {
+      "content": "aturan umum"
+    }
+  }
+}
+
+## Example 8
+User: 
+Chain of Thought:
+- The query is empty.
+- Use match_all.
+
+Output:
+{
+  "query": {
+    "match_all": {}
+  }
+}
+
+## Example 9
+User: perkawinan dan perceraian
+Chain of Thought:
+- Multiple relevant keywords.
+- Use a bool query with "should" for each keyword.
+
+Output:
+{
+  "query": {
+    "bool": {
+      "should": [
+        { "match": { "content": "perkawinan" } },
+        { "match": { "content": "perceraian" } }
+      ]
+    }
+  }
+}
+
+DO NOT GENERATE THE MARKDOWN FORMATTING JUST RETURN THE OBJECT
+
+THE OBJECT ONLY
+
+IT WILL BE PUT INTO JSON.parse
+
+if the string you're returning isn't a valid query or json it will crash and i and you will be severely punished!!!
+
+# Now, generate the Elasticsearch query for the following user question:
+User: {user_question}
 """
 
 SEARCH_KUHP_AGENT_PROMPT = """
@@ -652,6 +857,173 @@ Output:
         { "match": { "content": "kekerasan" } }
       ]
     }
+  }
+}
+
+DO NOT GENERATE THE MARKDOWN FORMATTING JUST RETURN THE OBJECT
+
+THE OBJECT ONLY
+
+IT WILL BE PUT INTO JSON.parse
+
+if the string you're returning isn't a valid query or json it will crash and i and you will be severely punished!!!
+
+# Now, generate the Elasticsearch query for the following user question:
+User: {user_question}
+"""
+
+
+SEARCH_UNDANG_UNDANG_AGENT_PROMPT = """
+You are an expert Elasticsearch query generator for Indonesian statutory documents (Undang-Undang).
+
+# Index Structure
+Each document in the "undang-undang" index has the following fields:
+- "isi": The main content of the article, section, or explanation.
+- "penjelasan": Additional explanation for the article (may be empty).
+- "_id": Document identifier, usually in the format "UU_Nomor_<number>_Tahun_<year>.pdf___<section_number>".
+
+# Instructions
+- If the user query mentions a specific Undang-Undang (e.g., "UU Nomor 5 Tahun 1975", "Undang-Undang Nomor 33 Tahun 1956"), generate a bool query with "should" that matches "_id" (with boost 3) and "isi" for the number/year.
+- If the user query mentions a specific pasal/article (e.g., "Pasal 2", "Pasal 10 ayat (4)"), add a "should" clause to match "isi" with the pasal/ayat number.
+- If the user query is about a topic or keyword (e.g., "modal", "keanggotaan DPR", "pencetakan film"), use a match query on "isi" with the main keyword(s).
+- If the user query is vague, ambiguous, or only contains general words (e.g. "jelaskan", "aturan", "penjelasan"), use a match query on "isi" with the most likely relevant general keyword (e.g. "aturan umum", "penjelasan").
+- If the user query is empty or only contains stopwords, return a match_all query.
+- If the user query contains multiple relevant keywords, use a bool query with "should" for each keyword in "isi".
+- Do not include explanations or comments.
+- Always return a valid JSON object only.
+
+# Examples
+
+## Example 1
+User: Apa isi UU Nomor 5 Tahun 1975?
+Chain of Thought:
+- The user wants all content from UU Nomor 5 Tahun 1975.
+- Match "_id" with "UU_Nomor_5_Tahun_1975" (boost 3), and also match "isi" with "Nomor 5 Tahun 1975".
+
+Output:
+{
+  "query": {
+    "bool": {
+      "should": [
+        {
+          "match": {
+            "_id": {
+              "query": "UU_Nomor_5_Tahun_1975",
+              "boost": 3
+            }
+          }
+        },
+        {
+          "match": {
+            "isi": "Nomor 5 Tahun 1975"
+          }
+        }
+      ]
+    }
+  }
+}
+
+## Example 2
+User: Apa isi Pasal 2 UU Nomor 5 Tahun 1975?
+Chain of Thought:
+- The user wants Article 2 from UU Nomor 5 Tahun 1975.
+- Match "_id" with "UU_Nomor_5_Tahun_1975" (boost 3), and "isi" with "Pasal 2".
+
+Output:
+{
+  "query": {
+    "bool": {
+      "should": [
+        {
+          "match": {
+            "_id": {
+              "query": "UU_Nomor_5_Tahun_1975",
+              "boost": 3
+            }
+          }
+        },
+        {
+          "match": {
+            "isi": "Pasal 2"
+          }
+        }
+      ]
+    }
+  }
+}
+
+## Example 3
+User: Apa aturan tentang modal dalam undang-undang?
+Chain of Thought:
+- No specific UU or pasal mentioned.
+- Use a match query on "isi" with "modal".
+
+Output:
+{
+  "query": {
+    "match": {
+      "isi": "modal"
+    }
+  }
+}
+
+## Example 4
+User: penjelasan tentang keanggotaan DPR
+Chain of Thought:
+- Use a match query on "isi" with "keanggotaan DPR".
+
+Output:
+{
+  "query": {
+    "match": {
+      "isi": "keanggotaan DPR"
+    }
+  }
+}
+
+## Example 5
+User: pencetakan film dan radio
+Chain of Thought:
+- Multiple relevant keywords.
+- Use a bool query with "should" for each keyword.
+
+Output:
+{
+  "query": {
+    "bool": {
+      "should": [
+        { "match": { "isi": "pencetakan film" } },
+        { "match": { "isi": "radio" } }
+      ]
+    }
+  }
+}
+
+## Example 6
+User: Jelaskan aturan umum!
+Chain of Thought:
+- The query is vague/general.
+- Use a match query on "isi" with "aturan umum".
+
+Output:
+{
+  "query": {
+    "match": {
+      "isi": "aturan umum"
+    }
+  }
+}
+
+## Example 7
+User: 
+Chain of Thought:
+- The query is empty.
+- Use match_all.
+
+Output:
+{
+  "query": {
+    "match_all": {}
   }
 }
 
