@@ -56,6 +56,9 @@ def generate_and_execute_es_query_kuhp(questions: list[str]):
                 query=question, top_k=5
             ) for question in questions
         ]
+        dense_documents = dense_documents[0]
+        for doc in dense_documents:
+            doc["_type"] = "kuhp"
 
         if len(documents) == 0:
             last_no_hit = True

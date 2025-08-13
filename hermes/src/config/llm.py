@@ -55,6 +55,12 @@ GO DIRECTLY TO SEARCHING WITHOUT ANNOUNCING IT.
   Please do not write the id as document title and vice versa
   Please do not make up the document title and id, it will cause problems
   CITATION MUST BE A VALID MARKDOWN LINK
+
+  *Please note that for doc["_index"] == kuhper, write the id as "KUH_Perdata" and for doc["_index"] == kuhp, write the id as "UU_1_2023"*
+  *Also note that for doc["_index"] == undang-undang, transform the format of the id from "UU_Nomor_{Number}_Tahun_{Year}___{Pasal} to UU_{Number}_{Year}"*
+  *Also note that for doc["_index"] == peraturan_indonesia, the id is the same as _id*
+
+  If the specific pasal is known, please tell the user that pasal number in the final answer
 - document_title should be in a human readable format as specified below, do not write the id as document title
 - document_title: {Regulation Type} Nomor {Number} Tahun {Year} tentang {About}
 - Example: [Peraturan Mahkamah Konstitusi  Nomor 3 Tahun 2021](https://chat.lexin.cs.ui.ac.id/details/Peraturan MK_3_2021)

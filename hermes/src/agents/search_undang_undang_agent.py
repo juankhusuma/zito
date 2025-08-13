@@ -55,10 +55,19 @@ def generate_and_execute_es_query_undang_undang(questions: list[str]):
                 query=question, top_k=5
             ) for question in questions
         ]
+        result = []
+        for doc in dense_documents:
+            result.extend(doc.get("matches", []))
 
+        dense_documents = result
+        for doc in dense_documents:
+            del doc["values"]
+            doc["metadata"]["_type"] = "undang-undang"
+            
         if len(documents) == 0:
             last_no_hit = True
             continue
         if error is None:
             return documents, dense_documents
+        
         time.sleep(1)
