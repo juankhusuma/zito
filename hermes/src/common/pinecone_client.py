@@ -3,8 +3,14 @@ from dotenv import load_dotenv
 import os
 load_dotenv()
 
-pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
-pc_2 = Pinecone(api_key=os.getenv("PINECONE_API_KEY_2"))
+pc = Pinecone(
+    api_key=os.getenv("PINECONE_API_KEY"),
+    proxy_url="http://proxy.cs.ui.ac.id:8080"    
+)
+pc_2 = Pinecone(
+    api_key=os.getenv("PINECONE_API_KEY_2"),
+    proxy_url="http://proxy.cs.ui.ac.id:8080"    
+)
 # index = pc.Index("lexin")
 index_list = pc.list_indexes()
 print(index_list)
