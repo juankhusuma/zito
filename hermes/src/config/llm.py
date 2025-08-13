@@ -50,7 +50,7 @@ GO DIRECTLY TO SEARCHING WITHOUT ANNOUNCING IT.
 - "To answer your question, I need to search..."
 
 # CITATION FORMAT
-- Format: [document_title](https://chat.lexin.cs.ui.ac.id/details/hits["_id"])
+- Format: [document_title](https://chat.lexin.cs.ui.ac.id/details/hits["_id"]) (Pasal {Pasal Number})
   The id must be exactly the same as _id, if no document exist just dont give any citation
   Please do not write the id as document title and vice versa
   Please do not make up the document title and id, it will cause problems

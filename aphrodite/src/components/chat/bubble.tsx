@@ -174,11 +174,11 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                 }
                                                 let doc = null;
                                                 for (const document of props?.chat?.documents as any || []) {
-                                                    if (document._id === docId) {
+                                                    if (document._id === docId && !!document?.source && !document?.pasal) {
                                                         doc = document;
                                                         break;
                                                     }
-                                                    if (document.id === docId) {
+                                                    if (document.id === docId && !!document?.source && !document?.pasal) {
                                                         doc = document;
                                                         break;
                                                     }

@@ -39,7 +39,7 @@ def generate_and_execute_es_query_undang_undang(questions: list[str]):
             ),
         )
         query_json = None
-        cleaned_text = es_query_res.text.strip()
+        cleaned_text = es_query_res.text.strip() if es_query_res.text else "{}"
         if cleaned_text.startswith("```json"):
             cleaned_text = cleaned_text.replace("```json", "").replace("```", "").strip()
         if cleaned_text.startswith("```"):

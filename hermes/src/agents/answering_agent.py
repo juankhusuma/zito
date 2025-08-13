@@ -139,7 +139,22 @@ def answer_user(history: History, documents: list[dict], serialized_answer_res: 
 
     # Use streaming generation
     if message_id:
-        return stream_answer_user(history, message_id, documents, serialized_answer_res)
+        id_to_fetch = []
+        for doc in need_fetch_metadata:
+            if doc["_index"] == "kuhper": doc["_id"] = "KUH_Perdata"
+            if doc["_index"] == "kuhp": doc["_id"] = "UU_1_2023"
+            if doc["_id"] not in id_to_fetch:
+                id_to_fetch.append(doc["_id"])
+
+        print(id_to_fetch)
+        
+        metadata = []
+        for doc_id in id_to_fetch:
+            doc_metadata = get_document_metadata(doc_id)
+            print("@@@@@@@@@@@DOC METADATA", doc_metadata)
+            if doc_metadata:
+                metadata.append(doc_metadata)
+        return stream_answer_user(history, message_id, documents + metadata, serialized_answer_res)
     else:
         res = gemini_client.models.generate_content(
             model=MODEL_NAME,
