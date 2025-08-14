@@ -267,7 +267,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                     <a rel="noreferrer">
                                                         <Dialog>
                                                             <DialogTrigger className="bg-[#192f59] cursor-pointer text-white px-2 py-1 no-underline rounded-md hover:opacity-60 opacity-80 transition-opacity font-medium text-xs">
-                                                                [{references.get(docId)?.number}] {references.get(docId)?.doc?.source?.metadata?.["Bentuk Singkat"]} No. {references.get(docId)?.doc?.source?.metadata?.["Nomor"]} Tahun {references.get(docId)?.doc?.source?.metadata?.["Tahun"]}
+                                                                {references.get(docId)?.doc?.source?.metadata?.["Bentuk Singkat"]} No. {references.get(docId)?.doc?.source?.metadata?.["Nomor"]} Tahun {references.get(docId)?.doc?.source?.metadata?.["Tahun"]}
                                                             </DialogTrigger>
                                                             <DialogContent className="max-w-5xl w-[96vw] sm:w-[90vw] max-h-[85vh] p-0 overflow-hidden border-gray-200">
                                                                 {/* Header */}
