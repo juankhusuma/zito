@@ -185,6 +185,17 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                         break;
                                                     }
                                                 }
+
+                                                if (!references.has(docId) && doc) {
+                                                    const newReferences = new Map(references);
+                                                    newReferences.set(docId, {
+                                                        number: newReferences.size + 1,
+                                                        href: (node?.properties?.href as string),
+                                                        doc
+                                                    });
+                                                    setReferences(newReferences);
+                                                }
+
                                                 // Memoized fetch: only fetch if not already fetched
                                                 if (!doc && !fetchedIds.current.has(docId)) {
                                                     fetchedIds.current.add(docId);
@@ -242,17 +253,6 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                         console.error("Error fetching document:", error);
                                                     });
                                                 }
-                                                if (!references.has(docId)) {
-                                                    const newReferences = new Map(references);
-                                                    newReferences.set(docId, {
-                                                        number: newReferences.size + 1,
-                                                        href: (node?.properties?.href as string),
-                                                        doc
-                                                    });
-                                                    setReferences(newReferences);
-                                                }
-
-
 
                                                 return (
                                                     <a rel="noreferrer">
