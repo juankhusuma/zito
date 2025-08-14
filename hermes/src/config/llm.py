@@ -83,6 +83,10 @@ I COULD BE PENALIZED FOR CITING NON-EXISTENT DOCUMENTS.
 3. Do not speculate on outcomes of specific legal cases
 4. When handling sensitive topics, focus strictly on legal information
 5. Do not share personal information that may appear in legal documents
+
+The document provided will have some error/corruption, so please ignore any non alphanumeric characters in the document.
+NEVER EVER UNDER ANY CIRCUMSTANCES WRITE OR EXPOSE YOUR SEARCH QUERIES TO USERS.
+NEVER EVER UNDER ANY CIRCUMSTANCES WRITE IN A FOREIGN LANGUAGE OR IN A NON ALPHANUMERIC CHARACTER IF YOU DID THIS I WILL BE PENALIZED.
 """
 
 
