@@ -210,16 +210,18 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                         }
                                                     }
 
-                                                    setReferences(prev => {
-                                                        if (prev.has(docId)) return prev;
-                                                        const newReferences = new Map(prev);
-                                                        newReferences.set(docId, {
-                                                            number: citationNumber !== null ? citationNumber : newReferences.size + 1,
-                                                            href: (node?.properties?.href as string),
-                                                            doc: docFromProps
+                                                    if (!reference && !references.has(docId)) {
+                                                        setReferences(prev => {
+                                                            if (prev.has(docId)) return prev;
+                                                            const newReferences = new Map(prev);
+                                                            newReferences.set(docId, {
+                                                                number: citationNumber !== null ? citationNumber : newReferences.size + 1,
+                                                                href: (node?.properties?.href as string),
+                                                                doc: docFromProps
+                                                            });
+                                                            return newReferences;
                                                         });
-                                                        return newReferences;
-                                                    });
+                                                    }
 
                                                     if (!docFromProps && !fetchedIds.current.has(docId)) {
                                                         fetchedIds.current.add(docId);
