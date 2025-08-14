@@ -171,6 +171,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                 let docId = (node?.properties?.href as string).replace("https://chat.lexin.cs.ui.ac.id/details/", "");
                                                 if (!docId) return null;
                                                 docId = docId.replace("%20", " ");
+                                                docId = docId.replace(/tahun_/ig, "");
                                                 if (typeof props?.chat?.documents === "string") {
                                                     props.chat.documents = JSON.parse(props.chat.documents)
                                                 }
@@ -186,7 +187,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                     }
                                                 }
 
-                                                if (!references.has(docId) && doc) {
+                                                if (!references.has(docId) && doc && doc.source) {
                                                     const newReferences = new Map(references);
                                                     newReferences.set(docId, {
                                                         number: newReferences.size + 1,
@@ -230,7 +231,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                                 source: d._source,
                                                                 pasal: d._source.pasal || null
                                                             };
-                                                            if (!doc.source) {
+                                                            if (!doc || !doc.source) {
                                                                 console.warn("No source found for document ID:", docId);
                                                                 return <></>;
                                                             }
