@@ -1,6 +1,7 @@
 from fastapi import FastAPI, APIRouter
 from asyncio import get_running_loop
 from ..router.chat import router as chat_router
+from ..router.search import router as search_router
 from fastapi.middleware.cors import CORSMiddleware
 from ..producer.chat_producer import ChatProducer
 from contextlib import asynccontextmanager
@@ -30,6 +31,7 @@ app.add_middleware(
 
 
 app.include_router(chat_router, tags=["chat"], prefix="/api/v1")
+app.include_router(search_router, tags=["search"], prefix="/api/v1")
 
 @app.get("/")
 def health_check():

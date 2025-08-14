@@ -172,27 +172,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                 if (!docId) return null;
                                                 docId = docId.replace("%20", " ");
 
-                                                const updateReferences = (docToUpdate: any) => {
-                                                    setReferences(prev => {
-                                                        if (prev.has(docId)) {
-                                                            return prev;
-                                                        }
-                                                        const newReferences = new Map(prev);
-                                                        let citationNumber: number | null = null;
-                                                        if (node?.children[0]?.type === 'text') {
-                                                            const parsed = parseInt(node.children[0].value, 10);
-                                                            if (!isNaN(parsed)) {
-                                                                citationNumber = parsed;
-                                                            }
-                                                        }
-                                                        newReferences.set(docId, {
-                                                            number: citationNumber !== null ? citationNumber : newReferences.size + 1,
-                                                            href: (node?.properties?.href as string),
-                                                            doc: docToUpdate
-                                                        });
-                                                        return newReferences;
-                                                    });
-                                                };
+                                                const reference = references.get(docId);
 
                                                 if (typeof props?.chat?.documents === "string") {
                                                     try {
@@ -201,59 +181,91 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                         console.error("Could not parse documents", e)
                                                     }
                                                 }
-                                                let doc = null;
+                                                let docFromProps = null;
                                                 for (const document of props?.chat?.documents as any || []) {
                                                     if (document._id === docId && !!document?.source && !document?.pasal) {
-                                                        doc = document;
+                                                        docFromProps = document;
                                                         break;
                                                     }
                                                     if (document.id === docId && !!document?.source && !document?.pasal) {
-                                                        doc = document;
+                                                        docFromProps = document;
                                                         break;
                                                     }
                                                 }
 
-                                                if (doc) {
-                                                    updateReferences(doc);
-                                                } else if (!fetchedIds.current.has(docId)) {
-                                                    fetchedIds.current.add(docId);
-                                                    fetch(`https://chat.lexin.cs.ui.ac.id/elasticsearch/peraturan_indonesia/_search`, {
-                                                        method: "POST",
-                                                        headers: {
-                                                            "Content-Type": "application/json",
-                                                        },
-                                                        body: JSON.stringify({
-                                                            query: {
-                                                                match: {
-                                                                    _id: docId
-                                                                }
-                                                            }
-                                                        })
-                                                    }).then(async (res) => {
-                                                        if (!res.ok) {
-                                                            console.error("Failed to fetch document:", res.statusText);
-                                                            return;
+                                                if (reference) {
+                                                    if (!reference.doc && docFromProps) {
+                                                        setReferences(prev => {
+                                                            const newReferences = new Map(prev);
+                                                            newReferences.set(docId, { ...reference, doc: docFromProps });
+                                                            return newReferences;
+                                                        });
+                                                    }
+                                                } else {
+                                                    let citationNumber: number | null = null;
+                                                    if (node?.children[0]?.type === 'text') {
+                                                        const parsed = parseInt(node.children[0].value, 10);
+                                                        if (!isNaN(parsed)) {
+                                                            citationNumber = parsed;
                                                         }
-                                                        const data = await res.json();
-                                                        if (data.hits && data.hits.hits && data.hits.hits.length > 0) {
-                                                            const d = data.hits.hits[0];
-                                                            const fetchedDoc = {
-                                                                _id: d._id,
-                                                                id: d._id,
-                                                                source: d._source,
-                                                                pasal: d._source.pasal || null
-                                                            };
-                                                            if (!props?.chat?.documents) {
-                                                                props.chat.documents = [] as any;
-                                                            }
-                                                            (props?.chat?.documents as any)?.push(fetchedDoc);
-                                                            updateReferences(fetchedDoc);
-                                                        } else {
-                                                            console.warn("No document found for ID:", docId);
-                                                        }
-                                                    }).catch((error) => {
-                                                        console.error("Error fetching document:", error);
+                                                    }
+
+                                                    setReferences(prev => {
+                                                        if (prev.has(docId)) return prev;
+                                                        const newReferences = new Map(prev);
+                                                        newReferences.set(docId, {
+                                                            number: citationNumber !== null ? citationNumber : newReferences.size + 1,
+                                                            href: (node?.properties?.href as string),
+                                                            doc: docFromProps
+                                                        });
+                                                        return newReferences;
                                                     });
+
+                                                    if (!docFromProps && !fetchedIds.current.has(docId)) {
+                                                        fetchedIds.current.add(docId);
+                                                        fetch(`${import.meta.env.VITE_API_URL}/api/v1/search`, {
+                                                            method: "POST",
+                                                            headers: {
+                                                                "Content-Type": "application/json",
+                                                            },
+                                                            body: JSON.stringify({
+                                                                query: {
+                                                                    match: {
+                                                                        _id: docId
+                                                                    }
+                                                                }
+                                                            })
+                                                        }).then(async (res) => {
+                                                            if (!res.ok) {
+                                                                console.error("Failed to fetch document:", res.statusText);
+                                                                return;
+                                                            }
+                                                            const data = await res.json();
+                                                            if (data.hits && data.hits.hits && data.hits.hits.length > 0) {
+                                                                const d = data.hits.hits[0];
+                                                                const fetchedDoc = {
+                                                                    _id: d._id,
+                                                                    id: d._id,
+                                                                    source: d._source,
+                                                                    pasal: d._source.pasal || null
+                                                                };
+                                                                if (!props?.chat?.documents) {
+                                                                    props.chat.documents = [] as any;
+                                                                }
+                                                                (props?.chat?.documents as any)?.push(fetchedDoc);
+                                                                setReferences(prev => {
+                                                                    const newReferences = new Map(prev);
+                                                                    const currentRef = newReferences.get(docId);
+                                                                    newReferences.set(docId, { ...currentRef!, doc: fetchedDoc });
+                                                                    return newReferences;
+                                                                });
+                                                            } else {
+                                                                console.warn("No document found for ID:", docId);
+                                                            }
+                                                        }).catch((error) => {
+                                                            console.error("Error fetching document:", error);
+                                                        });
+                                                    }
                                                 }
 
                                                 return (
