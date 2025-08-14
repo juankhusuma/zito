@@ -51,7 +51,7 @@ class ChatConsumer:
             documents = []
             serialized_answer_res = QnAList(is_sufficient=False, answers=[])
 
-            if not eval_res.is_sufficient:
+            if not eval_res.is_sufficient or True:
                 documents = RetrievalManager.perform_retrieval(eval_res, message_id)
                 serialized_answer_res = MessageHandler.generate_planned_answers(history, documents, eval_res)
 
