@@ -207,7 +207,16 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                         }
                                                         const data = await res.json();
                                                         if (data.hits && data.hits.hits && data.hits.hits.length > 0) {
-                                                            doc = data.hits.hits[0]._source;
+                                                            const d = data.hits.hits[0];
+                                                            doc = {
+                                                                source: d._source,
+                                                                id: d._id,
+                                                                score: d._score,
+                                                            }
+                                                            if (!props?.chat?.documents) {
+                                                                props.chat.documents = [] as any;
+                                                            }
+                                                            (props?.chat?.documents as any)?.push(doc);
                                                         } else {
                                                             console.warn("No document found for ID:", docId);
                                                         }
