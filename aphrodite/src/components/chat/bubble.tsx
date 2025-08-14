@@ -183,7 +183,38 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                         break;
                                                     }
                                                 }
-                                                if (!doc) return <></>;
+                                                console.log("Document found:", doc);
+                                                if (!doc) {
+                                                    console.warn("Document not found for ID:", docId);
+                                                    console.warn("Available documents:", props?.chat?.documents);
+                                                    console.log("Checking Elasticsearch for document:", docId);
+                                                    fetch(`https://chat.lexin.cs.ui.ac.id/elasticsearch/peraturan_indonesia/_search`, {
+                                                        method: "POST",
+                                                        headers: {
+                                                            "Content-Type": "application/json"
+                                                        },
+                                                        body: JSON.stringify({
+                                                            query: {
+                                                                match: {
+                                                                    _id: docId
+                                                                }
+                                                            }
+                                                        })
+                                                    }).then(async (res) => {
+                                                        if (!res.ok) {
+                                                            console.error("Failed to fetch document:", res.statusText);
+                                                            return;
+                                                        }
+                                                        const data = await res.json();
+                                                        if (data.hits && data.hits.hits && data.hits.hits.length > 0) {
+                                                            doc = data.hits.hits[0]._source;
+                                                        } else {
+                                                            console.warn("No document found for ID:", docId);
+                                                        }
+                                                    }).catch((error) => {
+                                                        console.error("Error fetching document:", error);
+                                                    });
+                                                }
 
                                                 if (!references.has(docId)) {
                                                     references.set(docId, {
