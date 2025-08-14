@@ -172,6 +172,9 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                 if (!docId) return null;
                                                 docId = docId.replace("%20", " ");
                                                 docId = docId.replace(/tahun_/ig, "");
+                                                docId = docId.replace("__", "_");
+                                                // replace the number in the middle if its only 1 digit add a leading 0, like UU_1_2023 -> UU_01_2023
+                                                docId = docId.replace(/_(\d{1})_/g, "_0$1_");
                                                 if (typeof props?.chat?.documents === "string") {
                                                     props.chat.documents = JSON.parse(props.chat.documents)
                                                 }
@@ -255,10 +258,17 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                     });
                                                 }
 
+                                                if (!doc || !doc.source || !references.get(docId)?.doc?.source?.metadata?.Nomor) {
+                                                    console.warn("No source found for document ID:", docId);
+                                                    return <></>;
+                                                }
+
                                                 return (
                                                     <a rel="noreferrer">
                                                         <Dialog>
-                                                            <DialogTrigger className="bg-[#192f59] cursor-pointer text-white px-2 py-1 no-underline rounded-md hover:opacity-80 transition-opacity font-medium text-xs">{references.get(docId)?.number}</DialogTrigger>
+                                                            <DialogTrigger className="bg-[#192f59] cursor-pointer text-white px-2 py-1 no-underline rounded-md hover:opacity-60 opacity-80 transition-opacity font-medium text-xs">
+                                                                [{references.get(docId)?.number}] {references.get(docId)?.doc?.source?.metadata?.["Bentuk Singkat"]} No. {references.get(docId)?.doc?.source?.metadata?.["Nomor"]} Tahun {references.get(docId)?.doc?.source?.metadata?.["Tahun"]}
+                                                            </DialogTrigger>
                                                             <DialogContent className="max-w-5xl w-[96vw] sm:w-[90vw] max-h-[85vh] p-0 overflow-hidden border-gray-200">
                                                                 {/* Header */}
                                                                 <div className="bg-white border-b border-gray-200 px-3 sm:px-4 py-3 sm:py-4">
