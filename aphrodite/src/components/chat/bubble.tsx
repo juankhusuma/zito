@@ -221,13 +221,13 @@ export default function ChatBubble(props: ChatBubbleProps) {
     };
 
     const processedText = useMemo(() => {
-        return text.replace(/\d+/g, (match, number) => {
+        return text.replace(/\d+/g, (match, _) => {
             const ref = Array.from(references.values()).find(r => r.number === parseInt(match, 10));
             if (ref) {
                 return `[${ref.number}](${ref.href})`;
             }
             return match;
-        }).replace(/```/g, "").replace(/\\]\\\(([^)]+)\\)/g, (_, url) => {
+        }).replace(/```/g, "").replace(/\]\(([^)]+)\)/g, (_, url) => {
             const encodedUrl = url.replace(/ /g, '%20');
             return `](${encodedUrl})`;
         });
@@ -518,7 +518,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                                                                 src={
                                                                                                     "https://peraturan.bpk.go.id" + reference.doc?.source?.files[0].download_url
                                                                                                 }
-                                                                                             />
+                                                                                            />
                                                                                         </div>
                                                                                     </div>
                                                                                 ) : (
@@ -561,7 +561,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                 )
                                             },
                                         }}>{
-                                            processedText}
+                                                processedText}
                                         </Markdown>
 
                                         {/* Reference List with Improved Styling */}
