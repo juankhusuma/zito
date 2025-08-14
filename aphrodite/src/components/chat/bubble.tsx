@@ -188,6 +188,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                     console.warn("Document not found for ID:", docId);
                                                     console.warn("Available documents:", props?.chat?.documents);
                                                     console.log("Checking Elasticsearch for document:", docId);
+
                                                     fetch(`https://chat.lexin.cs.ui.ac.id/elasticsearch/peraturan_indonesia/_search`, {
                                                         method: "POST",
                                                         headers: {
@@ -208,15 +209,79 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                         const data = await res.json();
                                                         if (data.hits && data.hits.hits && data.hits.hits.length > 0) {
                                                             const d = data.hits.hits[0];
+                                                            console.log("Document found in Elasticsearch:", d);
                                                             doc = {
-                                                                source: d._source,
+                                                                _id: d._id,
                                                                 id: d._id,
-                                                                score: d._score,
-                                                            }
+                                                                source: d._source,
+                                                                pasal: d._source.pasal || null
+                                                            };
+                                                            // doc = {
+                                                            //     "score": 1,
+                                                            //     "id": "UU_34_2004",
+                                                            //     "source": {
+                                                            //         "metadata": {
+                                                            //             "Tipe Dokumen": "Peraturan Perundang-undangan",
+                                                            //             "Judul": "Undang-undang (UU)  Nomor 34 Tahun 2004 tentang Tentara Nasional Indonesia",
+                                                            //             "T.E.U.": "Indonesia, Pemerintah Pusat",
+                                                            //             "Nomor": "34",
+                                                            //             "Bentuk": "Undang-undang (UU)",
+                                                            //             "Bentuk Singkat": "UU",
+                                                            //             "Tahun": "2004",
+                                                            //             "Tempat Penetapan": "Jakarta",
+                                                            //             "Tanggal Penetapan": "16 October 2004",
+                                                            //             "Tanggal Pengundangan": "16 October 2004",
+                                                            //             "Tanggal Berlaku": "16 October 2004",
+                                                            //             "Sumber": "LN. 2004/ No. 127, TLN NO. 4439, LL SETNEG : 37 HLM",
+                                                            //             "Subjek": "PERTAHANAN DAN KEAMANAN, MILITER",
+                                                            //             "Status": "Berlaku",
+                                                            //             "Bahasa": "Bahasa Indonesia",
+                                                            //             "Lokasi": "Pemerintah Pusat",
+                                                            //             "Bidang": ""
+                                                            //         },
+                                                            //         "relations": {
+                                                            //             "Mencabut": [
+                                                            //                 {
+                                                            //                     "title": "UU No. 2 Tahun 1988",
+                                                            //                     "description": "Prajurit Angkatan Bersenjata Republik Indonesia",
+                                                            //                     "id": "uu-no-2-tahun-1988",
+                                                            //                     "url": "/Details/46808/uu-no-2-tahun-1988"
+                                                            //                 }
+                                                            //             ]
+                                                            //         },
+                                                            //         "files": [
+                                                            //             {
+                                                            //                 "file_id": "30510",
+                                                            //                 "filename": "UU Nomor 34 Tahun 2004.pdf",
+                                                            //                 "download_url": "/Download/30510/UU%20Nomor%2034%20Tahun%202004.pdf",
+                                                            //             }
+                                                            //         ],
+                                                            //         "abstrak": [
+                                                            //             "bahwa tujuan nasional Indonesia adalah untuk melindungi segenap bangsa dan seluruh tumpah darah Indonesia, memajukan kesejahteraan umum, mencerdaskan kehidupan bangsa, dan ikut serta melaksanakan ketertiban dunia yang berdasarkan kemerdekaan, perdamaian abadi, dan keadilan sosial;\r\nbahwa pertahanan negara adalah segala usaha untuk menegakkan kedaulatan negara, mempertahankan keutuhan wilayah Negara Kesatuan Republik Indonesia, dan keselamatan segenap bangsa dari ancaman militer serta ancaman bersenjata terhadap keutuhan bangsa dan negara;\r\nbahwa Tentara Nasional Indonesia sebagai alat pertahanan Negara Kesatuan Republik Indonesia, bertugas melaksanakan kebijakan pertahanan negara untuk menegakkan kedaulatan negara, mempertahankan keutuhan wilayah, dan melindungi keselamatan bangsa, menjalankan operasi militer untuk perang dan operasi militer selain perang, serta ikut secara aktif dalam tugas pemeliharaan perdamaian regional dan internasional;\r\nbahwa Tentara Nasional Indonesia dibangun dan dikembangkan secara profesional sesuai kepentingan politik negara, mengacu pada nilai dan prinsip demokrasi, supremasi sipil, hak asasi manusia, ketentuan hukum nasional, dan ketentuan hukum internasional yang sudah diratifikasi, dengan dukungan anggaran belanja negara yang dikelola secara transparan dan akuntabel;\r\nbahwa Undang-Undang Republik Indonesia Nomor 2 Tahun 1988 tentang Prajurit Angkatan Bersenjata Republik Indonesia (Lembaran Negara Republik Indonesia Tahun 1988 Nomor 4, Tambahan Lembaran Negara Republik Indonesia Nomor 3368) dinilai tidak sesuai lagi dengan perubahan kelembagaan Angkatan Bersenjata Republik Indonesia menjadi Tentara Nasional Indonesia yang didorong oleh tuntutan reformasi dan demokrasi, perkembangan kesadaran hukum yang hidup dalam masyarakat sehingga undang-undang tersebut perlu diganti;\r\nbahwa Undang-Undang Republik Indonesia Nomor 3 Tahun 2002 tentang Pertahanan Negara (Lembaran Negara Republik Indonesia Tahun 2002 Nomor 3, Tambahan Lembaran Negara Republik Indonesia Nomor 4169) telah mengamanatkan dibentuknya peraturan perundang- undangan mengenai Tentara Nasional Indonesia.",
+                                                            //             "Pasal 5 ayat (1), Pasal 10, Pasal 11 ayat (1), Pasal 12, Pasal 20, Pasal 22 A, Pasal 27 ayat (3), dan Pasal 30 Undang-Undang Dasar Negara Republik Indonesia Tahun 1945;\r\n    Ketetapan MPR Nomor VI/MPR/2000 tentang Pemisahan Tentara Nasional Indonesia dan Kepolisian Negara Republik Indonesia, dan Ketetapan MPR Nomor VII/MPR/2000 tentang Peran Tentara Nasional Indonesia dan Peran Kepolisian Negara Republik Indonesia; dan\r\n    Undang-Undang Republik Indonesia Nomor 3 Tahun 2002 tentang Pertahanan Negara (Lembaran Negara Republik Indonesia Tahun 2002 Nomor 3, Tambahan Lembaran Negara Republik Indonesia Nomor 4169).",
+                                                            //             "1. KETENTUAN UMUM\r\n2. JATI DIRI\r\n3. KEDUDUKAN\r\n4. PERAN, FUNGSI, DAN TUGAS\r\n5. POSTUR DAN ORGANISASI\r\n6. PENGERAHAN DAN PENGGUNAAN KEKUATAN TNI\r\n7. PRAJURIT\r\n8. PEMBIAYAAN\r\n9. HUBUNGAN KELEMBAGAAN\r\n10. KETENTUAN PERALIHAN\r\n11. KETENTUAN PENUTUP"
+                                                            //         ],
+                                                            //         "catatan": [
+                                                            //             "Undang-undang (UU) ini mulai berlaku pada tanggal 16 Oktober 2004.",
+                                                            //             "-",
+                                                            //             "Susunan organisasi TNI sebagaimana dimaksud pada ayat (1), diatur lebih lanjut dengan Keputusan Presiden.\r\nTata cara pengangkatan dan pemberhentian Panglima sebagaimana dimaksud pada ayat (2), ayat (3), ayat (4), ayat (5), ayat (6), ayat (7), ayat (8), dan ayat (9), diatur lebih lanjut dengan keputusan Presiden.\r\nTata cara pengangkatan dan pemberhentian Kepala Staf Angkatan sebagaimana dimaksud pada ayat (2) dan ayat (3) diatur dengan keputusan Presiden.\r\nTata cara pengangkatan dan pemberhentian Kepala Staf Angkatan sebagaimana dimaksud pada ayat (2) dan ayat (3) diatur dengan keputusan Presiden.\r\nKetentuan sebagaimana dimaksud pada ayat (1) diatur dengan Peraturan Pemerintah.\r\nKetentuan sebagaimana dimaksud pada ayat (2), ayat (3), dan ayat (4) diatur dengan Peraturan Pemerintah.\r\nKetentuan sebagaimana dimaksud pada ayat (1), ayat (2), ayat (3), dan ayat (4) diatur lebih lanjut dengan Peraturan Pemerintah.\r\nPelaksanaan ketentuan sebagaimana dimaksud pada ayat (1) dan ayat (2) diatur dengan Peraturan Pemerintah.\r\nKetentuan sebagaimana dimaksud pada ayat (1) dan ayat (2) diatur dengan Peraturan Pemerintah.\r\nKetentuan sebagaimana dimaksud pada ayat (1) diatur dengan Peraturan Pemerintah.\r\nHak prajurit yang menyandang cacat berat, cacat sedang, atau cacat ringan yang diakibatkan karena tugas operasi militer, atau bukan tugas operasi militer selama dalam dinas keprajuritan, diatur dengan Peraturan Pemerintah.\r\nPrajurit berpangkat kolonel dan perwira tinggi, diberhentikan dari dinas keprajuritan dengan Keputusan Presiden.\r\nPelaksanaan ketentuan sebagaimana dimaksud pada ayat (1) diatur dengan keputusan Presiden.\r\nKetentuan sebagaimana dimaksud pada ayat (1) dan (2) diatur lebih lanjut dengan Peraturan Pemerintah.\r\nTata cara dan ketentuan lebih lanjut mengenai pelaksanaan ayat (1) diatur dengan keputusan Presiden.",
+                                                            //             "18"
+                                                            //         ]
+                                                            //     }
+                                                            // }
                                                             if (!props?.chat?.documents) {
                                                                 props.chat.documents = [] as any;
                                                             }
                                                             (props?.chat?.documents as any)?.push(doc);
+                                                            if (!references.has(docId)) {
+                                                                references.set(docId, {
+                                                                    number: references.size + 1,
+                                                                    href: (node?.properties?.href as string),
+                                                                    doc
+                                                                })
+                                                                setReferences(new Map(references));
+                                                            }
+
                                                         } else {
                                                             console.warn("No document found for ID:", docId);
                                                         }
@@ -226,13 +291,15 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                 }
 
                                                 if (!references.has(docId)) {
-                                                    references.set(docId, {
-                                                        number: references.size + 1,
+                                                    const newReferences = new Map(references);
+                                                    newReferences.set(docId, {
+                                                        number: newReferences.size + 1,
                                                         href: (node?.properties?.href as string),
                                                         doc
-                                                    })
-                                                    setReferences(new Map(references));
+                                                    });
+                                                    setReferences(newReferences);
                                                 }
+
 
 
                                                 return (
