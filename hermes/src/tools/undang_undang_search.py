@@ -6,6 +6,8 @@ import requests
 from typing import Dict, Any, List
 from src.common.gemini_client import client as gemini_client
 from src.common.pinecone_client import undang_undang_index
+from dotenv import load_dotenv
+load_dotenv()
 
 def undang_undang_document_search(query: dict) -> List[Dict[str, Any]]:
     print("🔍 Starting legal_document_search...")
@@ -29,7 +31,7 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
     print("🚀 Starting search_legal_documents...")
     print(f"📋 Raw search query: {json.dumps(search_query, default=str, indent=2)}")
     
-    url = "https://chat.lexin.cs.ui.ac.id/elasticsearch/undang-undang/_search"
+    url = f"{os.environ.get("ES_BASE_URL", "https://chat.lexin.cs.ui.ac.id/elasticsearch")}/undang-undang/_search"
     print(f"🌐 Using Elasticsearch URL: {url}")
     
     print("🔐 Getting authentication...")

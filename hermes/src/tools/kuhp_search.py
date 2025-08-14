@@ -28,7 +28,7 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
     print("🚀 Starting search_legal_documents...")
     print(f"📋 Raw search query: {json.dumps(search_query, default=str, indent=2)}")
     
-    url = os.getenv("ELASTICSEARCH_URL", "https://search.litsindonesia.com/kuhp_bm25/_search")
+    url = f"{os.environ.get("ES_BASE_URL", "https://chat.lexin.cs.ui.ac.id/elasticsearch")}/kuhp/_search"
     print(f"🌐 Using Elasticsearch URL: {url}")
     
     print("🔐 Getting authentication...")
