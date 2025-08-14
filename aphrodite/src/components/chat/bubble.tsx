@@ -188,6 +188,10 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                 // Memoized fetch: only fetch if not already fetched
                                                 if (!doc && !fetchedIds.current.has(docId)) {
                                                     fetchedIds.current.add(docId);
+                                                    if (docId.split("_").length !== 3) {
+                                                        console.warn("Invalid document ID format:", docId);
+                                                        return <></>;
+                                                    }
                                                     fetch(`https://chat.lexin.cs.ui.ac.id/elasticsearch/peraturan_indonesia/_search`, {
                                                         method: "POST",
                                                         headers: {
@@ -215,6 +219,10 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                                 source: d._source,
                                                                 pasal: d._source.pasal || null
                                                             };
+                                                            if (!doc.source) {
+                                                                console.warn("No source found for document ID:", docId);
+                                                                return <></>;
+                                                            }
                                                             if (!props?.chat?.documents) {
                                                                 props.chat.documents = [] as any;
                                                             }
