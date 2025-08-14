@@ -143,8 +143,9 @@ export default function ChatBubble(props: ChatBubbleProps) {
             });
         }
 
-        // Build references map
+        // Build references map ONLY for existing documents
         const newReferences = new Map<string, any>();
+        let validIndex = 1;
         for (let i = 0; i < found.length; i++) {
             const item = found[i];
             let docFromProps = null;
@@ -158,11 +159,15 @@ export default function ChatBubble(props: ChatBubbleProps) {
                     break;
                 }
             }
-            newReferences.set(item.docId, {
-                number: item.citationNumber !== null ? item.citationNumber : i + 1,
-                href: item.href,
-                doc: docFromProps
-            });
+            // Only add if docFromProps exists!
+            if (docFromProps) {
+                newReferences.set(item.docId, {
+                    number: validIndex,
+                    href: item.href,
+                    doc: docFromProps
+                });
+                validIndex++;
+            }
         }
         setReferences(newReferences);
     }, [props.message, props.chat.documents]);
