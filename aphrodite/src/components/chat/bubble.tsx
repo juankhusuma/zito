@@ -196,9 +196,17 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                         doc = document;
                                                         break;
                                                     }
+                                                    if (document._id === oldDocId && !!document?.source && !document?.pasal) {
+                                                        doc = document;
+                                                        break;
+                                                    }
+                                                    if (document.id === oldDocId && !!document?.source && !document?.pasal) {
+                                                        doc = document;
+                                                        break;
+                                                    }
                                                 }
 
-                                                if (!references.has(docId) && doc && doc.source) {
+                                                if (!references.has(docId) && doc && doc.source && !references.has(oldDocId)) {
                                                     const newReferences = new Map(references);
                                                     newReferences.set(docId, {
                                                         number: newReferences.size + 1,
@@ -209,8 +217,9 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                 }
 
                                                 // Memoized fetch: only fetch if not already fetched
-                                                if (!doc && !fetchedIds.current.has(docId)) {
+                                                if (!doc && !fetchedIds.current.has(docId) && !fetchedIds.current.has(oldDocId) && !references.has(docId) && !references.has(oldDocId)) {
                                                     fetchedIds.current.add(docId);
+                                                    fetchedIds.current.add(oldDocId);
                                                     if (docId.split("_").length !== 3) {
                                                         console.warn("Invalid document ID format:", docId);
                                                         return <></>;
@@ -277,7 +286,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                     });
                                                 }
 
-                                                if (!doc || !doc.source || !references.get(docId)?.doc?.source?.metadata?.Nomor) {
+                                                if (!doc || !doc.source || (!(references.get(docId) || references.get(oldDocId))?.doc?.source?.metadata?.Nomor && !references.get(oldDocId)?.doc?.source?.metadata?.Nomor)) {
                                                     console.warn("No source found for document ID:", docId);
                                                     return <></>;
                                                 }
@@ -286,7 +295,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                     <a rel="noreferrer">
                                                         <Dialog>
                                                             <DialogTrigger className="bg-[#192f59] cursor-pointer text-white px-2 py-1 no-underline rounded-md hover:opacity-60 opacity-80 transition-opacity font-medium text-xs">
-                                                                {references.get(docId)?.doc?.source?.metadata?.["Bentuk Singkat"]} No. {references.get(docId)?.doc?.source?.metadata?.["Nomor"]} Tahun {references.get(docId)?.doc?.source?.metadata?.["Tahun"]}
+                                                                {(references.get(docId) || references.get(oldDocId))?.doc?.source?.metadata?.["Bentuk Singkat"]} No. {(references.get(docId) || references.get(oldDocId))?.doc?.source?.metadata?.["Nomor"]} Tahun {(references.get(docId) || references.get(oldDocId))?.doc?.source?.metadata?.["Tahun"]}
                                                             </DialogTrigger>
                                                             <DialogContent className="max-w-5xl w-[96vw] sm:w-[90vw] max-h-[85vh] p-0 overflow-hidden border-gray-200">
                                                                 {/* Header */}
@@ -295,37 +304,37 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                                         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 sm:gap-3">
                                                                             <div className="flex-1 min-w-0">
                                                                                 <DialogTitle className="text-left text-base sm:text-lg font-semibold text-gray-900 leading-tight mb-2 pr-2">
-                                                                                    {references.get(docId)?.doc?.source?.metadata?.Judul || "Dokumen Hukum"}
+                                                                                    {(references.get(docId) || references.get(oldDocId))?.doc?.source?.metadata?.Judul || "Dokumen Hukum"}
                                                                                 </DialogTitle>
 
                                                                                 {/* Key metadata badges */}
                                                                                 <div className="flex flex-wrap gap-1">
-                                                                                    {references.get(docId)?.doc?.source?.metadata?.Jenis && (
+                                                                                    {(references.get(docId) || references.get(oldDocId))?.doc?.source?.metadata?.Jenis && (
                                                                                         <Badge variant="outline" className="border-gray-300 text-gray-700 bg-gray-50 text-xs h-6">
                                                                                             <FileText className="w-3 h-3 mr-1" />
-                                                                                            <span className="hidden sm:inline">{references.get(docId)?.doc?.source?.metadata?.Jenis}</span>
-                                                                                            <span className="sm:hidden">{references.get(docId)?.doc?.source?.metadata?.Jenis.slice(0, 3)}</span>
+                                                                                            <span className="hidden sm:inline">{(references.get(docId) || references.get(oldDocId))?.doc?.source?.metadata?.Jenis}</span>
+                                                                                            <span className="sm:hidden">{(references.get(docId) || references.get(oldDocId))?.doc?.source?.metadata?.Jenis.slice(0, 3)}</span>
                                                                                         </Badge>
                                                                                     )}
-                                                                                    {references.get(docId)?.doc?.source?.metadata?.Nomor && (
+                                                                                    {(references.get(docId) || references.get(oldDocId))?.doc?.source?.metadata?.Nomor && (
                                                                                         <Badge variant="outline" className="border-gray-300 text-gray-700 bg-gray-50 text-xs h-6">
                                                                                             <Building className="w-3 h-3 mr-1" />
-                                                                                            No. {references.get(docId)?.doc?.source?.metadata?.Nomor}
+                                                                                            No. {(references.get(docId) || references.get(oldDocId))?.doc?.source?.metadata?.Nomor}
                                                                                         </Badge>
                                                                                     )}
-                                                                                    {references.get(docId)?.doc?.source?.metadata?.Tahun && (
+                                                                                    {(references.get(docId) || references.get(oldDocId))?.doc?.source?.metadata?.Tahun && (
                                                                                         <Badge variant="outline" className="border-gray-300 text-gray-700 bg-gray-50 text-xs h-6">
                                                                                             <Calendar className="w-3 h-3 mr-1" />
-                                                                                            {references.get(docId)?.doc?.source?.metadata?.Tahun}
+                                                                                            {(references.get(docId) || references.get(oldDocId))?.doc?.source?.metadata?.Tahun}
                                                                                         </Badge>
                                                                                     )}
-                                                                                    {references.get(docId)?.doc?.source?.metadata?.Status && (
-                                                                                        <Badge variant="outline" className={`text-xs h-6 ${references.get(docId)?.doc?.source?.metadata?.Status === "Berlaku"
+                                                                                    {(references.get(docId) || references.get(oldDocId))?.doc?.source?.metadata?.Status && (
+                                                                                        <Badge variant="outline" className={`text-xs h-6 ${(references.get(docId) || references.get(oldDocId))?.doc?.source?.metadata?.Status === "Berlaku"
                                                                                             ? "border-green-300 text-green-700 bg-green-50"
                                                                                             : "border-amber-300 text-amber-700 bg-amber-50"
                                                                                             }`}>
                                                                                             <Shield className="w-3 h-3 mr-1" />
-                                                                                            {references.get(docId)?.doc?.source?.metadata?.Status}
+                                                                                            {(references.get(docId) || references.get(oldDocId))?.doc?.source?.metadata?.Status}
                                                                                         </Badge>
                                                                                     )}
                                                                                 </div>
@@ -355,7 +364,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                                                 <ScrollArea className="h-[45vh] sm:h-[50vh] px-3 sm:px-4 py-3">
                                                                                     <div className="space-y-3 sm:space-y-4">
                                                                                         {/* PDF Download Section */}
-                                                                                        {references.get(docId)?.doc?.source?.files?.length > 0 && (
+                                                                                        {(references.get(docId) || references.get(oldDocId))?.doc?.source?.files?.length > 0 && (
                                                                                             <div className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4">
                                                                                                 <div className="flex items-center gap-2 mb-2 sm:mb-3">
                                                                                                     <div className="bg-blue-100 p-1.5 rounded-md">
@@ -364,7 +373,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                                                                     <h3 className="text-sm sm:text-base font-semibold text-gray-900">Unduhan PDF</h3>
                                                                                                 </div>
                                                                                                 <div className="space-y-2">
-                                                                                                    {references.get(docId)?.doc?.source?.files?.map((item: any) => (
+                                                                                                    {(references.get(docId) || references.get(oldDocId))?.doc?.source?.files?.map((item: any) => (
                                                                                                         <a
                                                                                                             key={item?.file_id}
                                                                                                             href={"https://peraturan.bpk.go.id" + item?.download_url}
@@ -394,7 +403,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                                                         )}
 
                                                                                         {/* Relations Section - Enhanced */}
-                                                                                        {references.get(docId)?.doc?.source?.relations && Object.keys(references.get(docId)?.doc?.source?.relations).length > 0 && (
+                                                                                        {(references.get(docId) || references.get(oldDocId))?.doc?.source?.relations && Object.keys((references.get(docId) || references.get(oldDocId))?.doc?.source?.relations).length > 0 && (
                                                                                             <div className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4">
                                                                                                 <div className="flex items-center gap-2 mb-3 sm:mb-4">
                                                                                                     <div className="bg-green-100 p-1.5 rounded-md">
@@ -403,7 +412,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                                                                     <h3 className="text-sm sm:text-base font-semibold text-gray-900">Relasi Dokumen Hukum</h3>
                                                                                                 </div>
                                                                                                 <div className="space-y-3">
-                                                                                                    {Object.entries(references.get(docId)?.doc?.source?.relations).map(([relationType, items]) => (
+                                                                                                    {Object.entries((references.get(docId) || references.get(oldDocId))?.doc?.source?.relations).map(([relationType, items]) => (
                                                                                                         <div key={relationType} className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
                                                                                                             <div className="bg-gradient-to-r from-gray-100 to-gray-50 border-b border-gray-200 px-3 py-2">
                                                                                                                 <div className="flex items-center gap-2">
@@ -447,7 +456,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                                                         )}
 
                                                                                         {/* Abstract/Summary Card */}
-                                                                                        {references.get(docId)?.doc?.source?.abstrak?.length > 0 && (
+                                                                                        {(references.get(docId) || references.get(oldDocId))?.doc?.source?.abstrak?.length > 0 && (
                                                                                             <div className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4">
                                                                                                 <div className="flex items-center gap-2 mb-2 sm:mb-3">
                                                                                                     <div className="bg-blue-100 p-1.5 rounded-md">
@@ -456,7 +465,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                                                                     <h3 className="text-sm sm:text-base font-semibold text-gray-900">Ringkasan Dokumen</h3>
                                                                                                 </div>
                                                                                                 <div className="space-y-2 sm:space-y-3">
-                                                                                                    {references.get(docId)?.doc?.source?.abstrak?.map((item: string, index: number) => (
+                                                                                                    {(references.get(docId) || references.get(oldDocId))?.doc?.source?.abstrak?.map((item: string, index: number) => (
                                                                                                         <div key={index} className="bg-gray-50 border border-gray-100 rounded-md p-2 sm:p-3">
                                                                                                             <p className="text-gray-700 leading-relaxed text-xs sm:text-sm">
                                                                                                                 {item}
@@ -478,7 +487,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                                                             <div className="overflow-x-auto">
                                                                                                 <table className="w-full border-collapse border border-gray-200 rounded-md">
                                                                                                     <tbody className="divide-y divide-gray-200">
-                                                                                                        {references.get(docId)?.doc?.source?.metadata && Object.entries(references.get(docId)?.doc?.source?.metadata).map(([key, value]) => (
+                                                                                                        {(references.get(docId) || references.get(oldDocId))?.doc?.source?.metadata && Object.entries((references.get(docId) || references.get(oldDocId))?.doc?.source?.metadata).map(([key, value]) => (
                                                                                                             <tr key={key} className="hover:bg-gray-50 transition-colors">
                                                                                                                 <td className="py-2 px-3 text-xs font-medium text-gray-600 bg-gray-50 border-r border-gray-200 w-1/3">
                                                                                                                     {key}
@@ -494,7 +503,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                                                         </div>
 
                                                                                         {/* Notes/Catatan */}
-                                                                                        {references.get(docId)?.doc?.source?.catatan?.length > 0 && (
+                                                                                        {(references.get(docId) || references.get(oldDocId))?.doc?.source?.catatan?.length > 0 && (
                                                                                             <div className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4">
                                                                                                 <div className="flex items-center gap-2 mb-2 sm:mb-3">
                                                                                                     <div className="bg-amber-100 p-1.5 rounded-md">
@@ -503,7 +512,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                                                                     <h3 className="text-sm sm:text-base font-semibold text-gray-900">Catatan Penting</h3>
                                                                                                 </div>
                                                                                                 <div className="space-y-2">
-                                                                                                    {references.get(docId)?.doc?.source?.catatan?.map((note: string, index: number) => (
+                                                                                                    {(references.get(docId) || references.get(oldDocId))?.doc?.source?.catatan?.map((note: string, index: number) => (
                                                                                                         <div key={index} className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-md p-2 sm:p-3">
                                                                                                             <div className="w-1.5 h-1.5 bg-amber-500 rounded-full mt-1.5 flex-shrink-0"></div>
                                                                                                             <p className="text-gray-700 text-xs leading-relaxed">
@@ -519,13 +528,13 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                                             </TabsContent>
 
                                                                             <TabsContent value="document" className="h-full p-0 m-0">
-                                                                                {references.get(docId)?.doc?.source?.files?.length > 0 ? (
+                                                                                {(references.get(docId) || references.get(oldDocId))?.doc?.source?.files?.length > 0 ? (
                                                                                     <div className="h-[45vh] sm:h-[50vh] p-3">
                                                                                         <div className="h-full rounded-md overflow-hidden border border-gray-300 bg-gray-100">
                                                                                             <embed
                                                                                                 className="w-full h-full"
                                                                                                 type="application/pdf"
-                                                                                                src={"https://peraturan.bpk.go.id" + references.get(docId)?.doc?.source?.files[0].download_url}
+                                                                                                src={"https://peraturan.bpk.go.id" + (references.get(docId) || references.get(oldDocId))?.doc?.source?.files[0].download_url}
                                                                                             />
                                                                                         </div>
                                                                                     </div>
@@ -546,12 +555,12 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                                 <DialogFooter className="border-t border-gray-200 bg-white px-3 sm:px-4 py-3">
                                                                     <div className="w-full flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                                                                         <div className="text-xs text-gray-500 font-mono">
-                                                                            ID: {references.get(docId)?.doc?.id}
+                                                                            ID: {(references.get(docId) || references.get(oldDocId))?.doc?.id}
                                                                         </div>
                                                                         <div className="flex gap-2">
-                                                                            {references.get(docId)?.doc?.source?.files?.length > 0 && (
+                                                                            {(references.get(docId) || references.get(oldDocId))?.doc?.source?.files?.length > 0 && (
                                                                                 <a
-                                                                                    href={getPdfUrl(references.get(docId)?.doc)}
+                                                                                    href={getPdfUrl((references.get(docId) || references.get(oldDocId))?.doc)}
                                                                                     target="_blank"
                                                                                     rel="noreferrer"
                                                                                     className="flex items-center gap-2 px-3 py-1.5 bg-[#192f59] text-white rounded-md hover:bg-[#0d1e3f] transition-colors text-xs font-medium"
