@@ -174,11 +174,15 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                 docId = docId.replace("%20", " ");
                                                 docId = docId.replace(/tahun_/ig, "");
                                                 docId = docId.replace("__", "_");
-                                                const oldDocId = docId
+                                                let oldDocId = docId
                                                 // replace the number in the middle if its only 1 digit add a leading 0, like UU_1_2023 -> UU_01_2023
                                                 docId = docId.replace(/_(\d{1})_/g, "_0$1_");
                                                 if (typeof props?.chat?.documents === "string") {
                                                     props.chat.documents = JSON.parse(props.chat.documents)
+                                                }
+                                                // if oldDocId contains a number in the middle, remove the leading zero if it exists
+                                                if (oldDocId.split("_").length === 3 && oldDocId.split("_")[1].length === 2) {
+                                                    oldDocId = oldDocId.replace(/_0+([1-9]\d*)_/g, "_$1_");
                                                 }
                                                 console.log("Document ID after processing:", docId);
 
