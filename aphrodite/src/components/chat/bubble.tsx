@@ -174,6 +174,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                 docId = docId.replace("%20", " ");
                                                 docId = docId.replace(/tahun_/ig, "");
                                                 docId = docId.replace("__", "_");
+                                                const oldDocId = docId
                                                 // replace the number in the middle if its only 1 digit add a leading 0, like UU_1_2023 -> UU_01_2023
                                                 docId = docId.replace(/_(\d{1})_/g, "_0$1_");
                                                 if (typeof props?.chat?.documents === "string") {
@@ -218,8 +219,19 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                         },
                                                         body: JSON.stringify({
                                                             query: {
-                                                                match: {
-                                                                    _id: docId
+                                                                bool: {
+                                                                    should: [
+                                                                        {
+                                                                            match: {
+                                                                                _id: docId
+                                                                            }
+                                                                        },
+                                                                        {
+                                                                            match: {
+                                                                                _id: oldDocId
+                                                                            }
+                                                                        }
+                                                                    ]
                                                                 }
                                                             }
                                                         })
