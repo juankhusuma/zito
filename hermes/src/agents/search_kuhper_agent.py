@@ -15,54 +15,36 @@ def evaluate_es_query(query: dict):
 
 def generate_and_execute_es_query_kuhper(questions: list[str]):
     time.sleep(1)
-    last_no_hit = False
-    prev_query = None
     max_attempt = 3
     while True and max_attempt > 0:
         max_attempt -= 1
-        es_query_res = gemini_client.models.generate_content(
-            model="gemini-2.5-pro",
-            contents=[{
-                "role": "user",
-                "parts": [
-                    {
-                        "text": "\n".join(["- " + question for question in questions])
-                    }
-                ],
-            }],
-            config=types.GenerateContentConfig(
-                candidate_count=1,
-                temperature=0.2,
-                system_instruction=SEARCH_KUHPER_AGENT_PROMPT + "\n".join(["- " + question for question in questions]) + \
-                "" if not last_no_hit else REWRITE_PROMPT(prev_query),
-                response_mime_type="application/json",
-            ),
-        )
-        query_json = None
-        cleaned_text = es_query_res.text.strip()
-        if cleaned_text.startswith("```json"):
-            cleaned_text = cleaned_text.replace("```json", "").replace("```", "").strip()
-        if cleaned_text.startswith("```"):
-            cleaned_text = cleaned_text.replace("```", "").strip()
-        try:
-            query_json = json.loads(cleaned_text)
-        except json.JSONDecodeError:
-            print("Error decoding JSON response from Gemini")
-            continue
+        query_json = {}
+        query_json["query"] = {
+            "bool": {
+                "should": [
+                    {"match": {"content": question}} for question in questions
+                ]
+            }
+        }
         documents, error = evaluate_es_query(query_json)
         dense_documents = [
             search_dense_kuhper_documents(
                 query=question, top_k=5
             ) for question in questions
         ]
-        dense_documents = dense_documents[0]
-
+        result = []
         for doc in dense_documents:
-            doc["_type"] = "kuhper"
+            result.extend(doc.get("matches", []))
 
+        dense_documents = result
+        for doc in dense_documents:
+            del doc["values"]
+            doc["metadata"]["_type"] = "kuhper"
+            
         if len(documents) == 0:
-            last_no_hit = True
             continue
         if error is None:
             return documents, dense_documents
+        
         time.sleep(1)
+    return [], []

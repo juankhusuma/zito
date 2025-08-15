@@ -170,6 +170,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                             a: ({ node }) => {
                                                 let docId = (node?.properties?.href as string).replace("https://chat.lexin.cs.ui.ac.id/details/", "");
                                                 if (!docId) return null;
+                                                console.log("Document ID:", docId);
                                                 docId = docId.replace("%20", " ");
                                                 docId = docId.replace(/tahun_/ig, "");
                                                 docId = docId.replace("__", "_");
@@ -178,6 +179,8 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                 if (typeof props?.chat?.documents === "string") {
                                                     props.chat.documents = JSON.parse(props.chat.documents)
                                                 }
+                                                console.log("Document ID after processing:", docId);
+
                                                 let doc = null;
                                                 for (const document of props?.chat?.documents as any || []) {
                                                     if (document._id === docId && !!document?.source && !document?.pasal) {
