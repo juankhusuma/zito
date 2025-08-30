@@ -18,13 +18,14 @@ import {
 import { useAuth } from "@/hoc/AuthProvider"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { MessageSquarePlus, MoreHorizontal, Search, Trash2 } from "lucide-react"
-import React, { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { useNavigate, useParams } from "react-router"
 import PrimaryButton from "../button"
 import { cn } from "@/lib/utils"
 import { TooltipProvider, TooltipTrigger } from "@radix-ui/react-tooltip"
 import { Tooltip, TooltipContent } from "../ui/tooltip"
 import { Input } from "@/components/ui/input"
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 interface Session {
     id: string
@@ -33,57 +34,82 @@ interface Session {
     user_uid: string
 }
 
+const fetchSessions = async (userId: string): Promise<Session[]> => {
+    const { data, error } = await supabase
+        .from("session")
+        .select("*")
+        .eq("user_uid", userId)
+        .order('last_updated_at', { ascending: false });
+    
+    if (error) {
+        throw new Error(error.message);
+    }
+    
+    return data || [];
+};
+
 export function AppSidebar() {
     const { user, loading } = useAuth()
-    const [sessions, setSessions] = React.useState<Session[]>([])
     const navigate = useNavigate()
-    const [groups, setGroups] = React.useState<{ [key: string]: Session[] }>({})
-    const [sidebarLoading, setSidebarLoading] = React.useState(false)
     const { sessionId } = useParams()
     const [searchQuery, setSearchQuery] = useState("")
-    const [filteredGroups, setFilteredGroups] = useState<{ [key: string]: Session[] }>({})
+    const queryClient = useQueryClient()
+
+    const { 
+        data: sessions = [], 
+        isLoading: sidebarLoading 
+    } = useQuery({
+        queryKey: ['sessions', user?.id],
+        queryFn: () => user?.id ? fetchSessions(user.id) : Promise.resolve([]),
+        enabled: !!user?.id,
+        staleTime: 3 * 60 * 1000, // 3 minutes
+        refetchOnWindowFocus: true,
+    })
 
     useEffect(() => {
-        setSidebarLoading(true)
         if (!loading && !user) {
             console.log("User not found, redirecting to login")
             window.location.href = "/login?next=/chat"
-            return;
         }
+    }, [user, loading])
 
-        // Fetch initial sessions
-        supabase.from("session").select("*")
-            .eq("user_uid", user?.id)
-            .then(({ data, error }) => {
-                if (error) {
-                    console.error("Error fetching sessions:", error)
-                    return
-                }
-                setSessions(data || [])
-                setSidebarLoading(false)
-            })
+    useEffect(() => {
+        if (!user?.id) return;
 
-        // Setup realtime subscription
-        const channel = supabase.realtime.channel(`session:${user?.id}`)
+        const channel = supabase.realtime.channel(`session:${user.id}`)
             .on("postgres_changes", {
                 schema: "public",
                 table: "session",
                 event: "UPDATE",
-                filter: `user_uid=eq.${user?.id}`
+                filter: `user_uid=eq.${user.id}`
             }, (payload) => {
                 console.log("Updated session:", payload)
-                setSessions((prev) => prev.map((session) =>
-                    session.id === payload.new.id ? payload.new as Session : session)
-                )
+                queryClient.setQueryData(['sessions', user.id], (oldData: Session[] = []) => 
+                    oldData.map((session) =>
+                        session.id === payload.new.id ? payload.new as Session : session)
+                );
             })
             .on("postgres_changes", {
                 schema: "public",
                 table: "session",
                 event: "INSERT",
-                filter: `user_uid=eq.${user?.id}`
+                filter: `user_uid=eq.${user.id}`
             }, (payload) => {
                 console.log("New session:", payload)
-                setSessions((prev) => [payload.new as Session, ...prev])
+                queryClient.setQueryData(['sessions', user.id], (oldData: Session[] = []) => 
+                    [payload.new as Session, ...oldData]
+                );
+            })
+            .on("postgres_changes", {
+                schema: "public",
+                table: "session",
+                event: "DELETE",
+                filter: `user_uid=eq.${user.id}`
+            }, (payload) => {
+                console.log("Deleted session:", payload)
+                queryClient.setQueryData(['sessions', user.id], (oldData: Session[] = []) => 
+                    oldData.filter(session => session.id !== payload.old.id)
+                );
             })
 
         channel.subscribe((status, err) => {
@@ -93,21 +119,21 @@ export function AppSidebar() {
             }
         })
 
-        // Cleanup subscription when component unmounts
         return () => {
             console.log("Unsubscribing from realtime channel")
             supabase.realtime.removeChannel(channel)
         }
-    }, [user, loading])
+    }, [user?.id, queryClient])
 
-    useEffect(() => {
-        // today
+    const groups = useMemo(() => {
         const today = new Date()
         const todayString = today.toISOString().split("T")[0]
+        
         const todayChatSessions = sessions.filter((session) => {
             const sessionDate = new Date(session.last_updated_at)
             return sessionDate.toISOString().split("T")[0] === todayString
         })
+        
         const yesterdayChatSessions = sessions.filter((session) => {
             const sessionDate = new Date(session.last_updated_at)
             const yesterday = new Date(today)
@@ -123,6 +149,7 @@ export function AppSidebar() {
             lastWeek.setDate(today.getDate() - 7)
             return sessionDate >= lastWeek && sessionDate < yesterday && !yesterdayChatSessions.includes(session)
         })
+        
         const lastMonthChatSessions = sessions.filter((session) => {
             const sessionDate = new Date(session.last_updated_at)
             const lastMonth = new Date(today)
@@ -145,6 +172,7 @@ export function AppSidebar() {
                 && !yesterdayChatSessions.includes(session)
                 && !todayChatSessions.includes(session)
         })
+        
         olderChatSessions.forEach((session) => {
             const sessionDate = new Date(session.last_updated_at)
             const monthYear = sessionDate.toLocaleString("default", { month: "long", year: "numeric" })
@@ -154,32 +182,29 @@ export function AppSidebar() {
             groupedOlderChatSessions[monthYear].push(session)
         })
 
-        // sort all sessions by last_updated_at
-        todayChatSessions.sort((a, b) => new Date(b.last_updated_at).getTime() - new Date(a.last_updated_at).getTime())
-        yesterdayChatSessions.sort((a, b) => new Date(b.last_updated_at).getTime() - new Date(a.last_updated_at).getTime())
-        lastWeekChatSessions.sort((a, b) => new Date(b.last_updated_at).getTime() - new Date(a.last_updated_at).getTime())
-        lastMonthChatSessions.sort((a, b) => new Date(b.last_updated_at).getTime() - new Date(a.last_updated_at).getTime())
+        const sortByDate = (a: Session, b: Session) => new Date(b.last_updated_at).getTime() - new Date(a.last_updated_at).getTime();
+        
+        todayChatSessions.sort(sortByDate)
+        yesterdayChatSessions.sort(sortByDate)
+        lastWeekChatSessions.sort(sortByDate)
+        lastMonthChatSessions.sort(sortByDate)
+        
         Object.keys(groupedOlderChatSessions).forEach((key) => {
-            groupedOlderChatSessions[key].sort((a, b) => new Date(b.last_updated_at).getTime() - new Date(a.last_updated_at).getTime())
+            groupedOlderChatSessions[key].sort(sortByDate)
         })
 
-
-        setGroups({
+        return {
             "Today": todayChatSessions,
             "Yesterday": yesterdayChatSessions,
             "Previous 7 Days": lastWeekChatSessions,
             "Previous 30 Days": lastMonthChatSessions,
             ...groupedOlderChatSessions,
-        })
-
-        console.log(groups)
-        console.log(sessions)
+        }
     }, [sessions])
 
-    useEffect(() => {
+    const filteredGroups = useMemo(() => {
         if (!searchQuery.trim()) {
-            setFilteredGroups(groups);
-            return;
+            return groups;
         }
 
         const query = searchQuery.toLowerCase();
@@ -195,7 +220,7 @@ export function AppSidebar() {
             }
         });
 
-        setFilteredGroups(filtered);
+        return filtered;
     }, [searchQuery, groups]);
 
     return (
@@ -229,7 +254,7 @@ export function AppSidebar() {
                 </SidebarHeader>
 
                 <SidebarContent className="px-2">
-                    {sidebarLoading && (
+                    {(sidebarLoading && sessions.length === 0) && (
                         <SidebarMenu>
                             {Array.from({ length: 6 }).map((_, index) => (
                                 <SidebarMenuItem key={index} className="mb-1">
@@ -296,11 +321,15 @@ export function AppSidebar() {
                                                                 const { error } = await supabase.from("session").delete().eq("id", session.id)
                                                                 if (error) {
                                                                     console.error("Error deleting session:", error)
+                                                                    return;
                                                                 }
                                                                 if (sessionId === session.id) {
                                                                     navigate("/chat")
                                                                 }
-                                                                setSessions((prev) => prev.filter((s) => s.id !== session.id))
+                                                                // Update React Query cache
+                                                                queryClient.setQueryData(['sessions', user.id], (oldData: Session[] = []) => 
+                                                                    oldData.filter(s => s.id !== session.id)
+                                                                );
                                                             }}
                                                             className="text-red-600 cursor-pointer focus:bg-red-50 focus:text-red-700"
                                                         >
