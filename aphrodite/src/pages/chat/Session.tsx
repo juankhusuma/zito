@@ -47,15 +47,18 @@ export default function Session() {
     const scrollAreaRef = useRef<HTMLDivElement>(null)
     const queryClient = useQueryClient()
 
+    // Query for chat messages
     const { 
         data: chats = [], 
-        isLoading: isPageLoading
+        isLoading: isPageLoading,
+        refetch
     } = useQuery({
         queryKey: ['chats', sessionId],
         queryFn: () => sessionId ? fetchChats(sessionId) : Promise.resolve([]),
         enabled: !!sessionId && !!user,
-        staleTime: 2 * 60 * 1000, // 2 minutes
-        refetchOnWindowFocus: true,
+        staleTime: Infinity, // Realtime handles freshness
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
     })
 
     const [isLoading, setIsLoading] = React.useState(false)
@@ -194,15 +197,19 @@ export default function Session() {
                     oldData.filter((chat) => chat.id !== payload.old.id)
                 );
             })
-            .subscribe((status) => {
+            .subscribe(async (status) => {
                 console.log("Subscription status:", status);
+                // Defensive refetch on successful subscription to cover missed events
+                if (status === 'SUBSCRIBED') {
+                    await refetch();
+                }
             });
 
         return () => {
             console.log("Unsubscribing from chat channel");
             channel.unsubscribe();
         };
-    }, [user, sessionId, queryClient]);
+    }, [user, sessionId, queryClient, refetch]);
 
     const memoizedChatList = useMemo(() => {
         const chatData = sessionId ? chats : welcomeChats;
