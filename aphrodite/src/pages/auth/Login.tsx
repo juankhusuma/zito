@@ -42,12 +42,12 @@ export default function Login() {
                 <div className="max-w-md w-full space-y-8">
                     <div className="text-center">
                         <h2 className="text-3xl font-extrabold text-gray-900">Selamat Datang</h2>
-                        {/* <p className="mt-2 text-sm text-gray-600">
+                        <p className="mt-2 text-sm text-gray-600">
                             Belum memiliki akun? {' '}
                             <a href="/register" className="font-medium text-[#192f59] hover:text-[#0d1e3f] transition-colors">
                                 Daftar
                             </a>
-                        </p> */}
+                        </p>
                         {isError && (
                             <div className="mt-4 bg-red-50 border-l-4 border-red-500 p-4">
                                 <div className="flex items-center">

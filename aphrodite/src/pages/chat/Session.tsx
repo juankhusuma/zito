@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import ChatBubble from "@/components/chat/bubble";
 import { randomQuestions } from "@/utils/getRecommendation";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 export interface Chat {
     id: string;
@@ -24,15 +25,43 @@ export interface Chat {
     state: "done" | "loading" | "error" | "generating" | "searching" | "extracting";
 }
 
+const fetchChats = async (sessionId: string): Promise<Chat[]> => {
+    const { data, error } = await supabase
+        .from("chat")
+        .select("*")
+        .eq("session_uid", sessionId)
+        .order('created_at', { ascending: true });
+    
+    if (error) {
+        throw new Error(error.message);
+    }
+    
+    return data || [];
+};
+
 export default function Session() {
     const navigate = useNavigate()
     const { sessionId } = useParams()
     const { user, loading } = useAuth()
-    const [chats, setChats] = React.useState<Chat[]>([])
-    const [isLoading, setIsLoading] = React.useState(false)
-    const [isPageLoading, setIsPageLoading] = React.useState(true)
     const [prompt, setPrompt] = React.useState("")
     const scrollAreaRef = useRef<HTMLDivElement>(null)
+    const queryClient = useQueryClient()
+
+    // Query for chat messages
+    const { 
+        data: chats = [], 
+        isLoading: isPageLoading,
+        refetch
+    } = useQuery({
+        queryKey: ['chats', sessionId],
+        queryFn: () => sessionId ? fetchChats(sessionId) : Promise.resolve([]),
+        enabled: !!sessionId && !!user,
+        staleTime: Infinity, // Realtime handles freshness
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+    })
+
+    const [isLoading, setIsLoading] = React.useState(false)
 
     const newSessionChat = async (question: string) => {
         if (!user || !question || question.trim() === "") return
@@ -114,73 +143,77 @@ export default function Session() {
         }
     }, [chats]);
 
+    const welcomeChats = useMemo(() => {
+        if (sessionId) return [];
+        return [{
+            id: "start",
+            content: "Halo! Selamat datang di **Lexin Chat!** Saya adalah **asisten virtual** Anda. Silakan ajukan **pertanyaan** atau beri tahu saya **apa yang dapat saya bantu**. Saya akan melakukan yang terbaik untuk **membantu** Anda. Mari kita mulai! 😊🙏",
+            role: "assistant" as const,
+            created_at: new Date(0).toISOString(),
+            user_uid: user?.id || "",
+            session_uid: "",
+            state: "done" as const,
+            context: undefined
+        }];
+    }, [sessionId, user?.id]);
+
     useEffect(() => {
-        // Reset loading state when sessionId changes
-        setIsPageLoading(true);
-        setChats([]);
-
-        if (!user) return;
-
-        if (!sessionId) {
-            setChats([{
-                id: "start",
-                content: "Halo! Selamat datang di **Lexin Chat!** Saya adalah **asisten virtual** Anda. Silakan ajukan **pertanyaan** atau beri tahu saya **apa yang dapat saya bantu**. Saya akan melakukan yang terbaik untuk **membantu** Anda. Mari kita mulai! 😊🙏",
-                role: "assistant",
-                created_at: new Date(0).toISOString(),
-                user_uid: user?.id || "",
-                session_uid: sessionId || "",
-                state: "generating"
-            }]);
-            setIsPageLoading(false);
-            return;
-        }
-
-        // Create a flag to handle race conditions
-        let isCurrentRequest = true;
-
-        supabase.from("chat").select("*").eq("session_uid", sessionId).then(({ data, error }) => {
-            // Ignore results if this effect has been cleaned up or re-run
-            if (!isCurrentRequest) return;
-
-            if (error) {
-                console.error("Error fetching chats:", error);
-                setIsPageLoading(false);
-                return;
-            }
-            setChats(data);
-            console.log("Fetched chats:", data);
-            setIsPageLoading(false);
-        });
+        if (!sessionId || !user) return;
 
         const channel = supabase.channel(`chat::${user.id}::${sessionId}`)
-            .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat", filter: `session_uid=eq.${sessionId}` }, (payload) => {
+            .on("postgres_changes", { 
+                event: "INSERT", 
+                schema: "public", 
+                table: "chat", 
+                filter: `session_uid=eq.${sessionId}` 
+            }, (payload) => {
                 console.log("New chat:", payload);
-                setChats((prev) => [...prev, payload.new as Chat]);
+                queryClient.setQueryData(['chats', sessionId], (oldData: Chat[] = []) => 
+                    [...oldData, payload.new as Chat]
+                );
             })
-            .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat", filter: `session_uid=eq.${sessionId}` }, (payload) => {
+            .on("postgres_changes", { 
+                event: "UPDATE", 
+                schema: "public", 
+                table: "chat", 
+                filter: `session_uid=eq.${sessionId}` 
+            }, (payload) => {
                 console.log("Updated chat:", payload);
-                setChats((prev) => prev.map((chat) => chat.id === payload.new.id ? {
-                    ...chat,
-                    ...payload.new
-                } as Chat : chat));
+                queryClient.setQueryData(['chats', sessionId], (oldData: Chat[] = []) => 
+                    oldData.map((chat) => chat.id === payload.new.id ? {
+                        ...chat,
+                        ...payload.new
+                    } as Chat : chat)
+                );
             })
-            .on("postgres_changes", { event: "DELETE", schema: "public", table: "chat", filter: `session_uid=eq.${sessionId}` }, (payload) => {
+            .on("postgres_changes", { 
+                event: "DELETE", 
+                schema: "public", 
+                table: "chat", 
+                filter: `session_uid=eq.${sessionId}` 
+            }, (payload) => {
                 console.log("Deleted chat:", payload);
-                setChats((prev) => prev.filter((chat) => chat.id !== payload.old.id));
+                queryClient.setQueryData(['chats', sessionId], (oldData: Chat[] = []) => 
+                    oldData.filter((chat) => chat.id !== payload.old.id)
+                );
             })
-            .subscribe((status) => {
+            .subscribe(async (status) => {
                 console.log("Subscription status:", status);
+                // Defensive refetch on successful subscription to cover missed events
+                if (status === 'SUBSCRIBED') {
+                    await refetch();
+                }
             });
 
-        // Return cleanup function
         return () => {
-            isCurrentRequest = false;
+            console.log("Unsubscribing from chat channel");
             channel.unsubscribe();
         };
-    }, [user, sessionId]);
+    }, [user, sessionId, queryClient, refetch]);
 
     const memoizedChatList = useMemo(() => {
-        return chats
+        const chatData = sessionId ? chats : welcomeChats;
+        return chatData
             .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
             .map((chat) => (
                 <ChatBubble
@@ -195,18 +228,18 @@ export default function Session() {
                     timestamp={chat.created_at}
                     message={chat.content}
                     context={chat?.context}
-                    history={chats}
+                    history={chatData}
                     sessionId={sessionId || ""}
                     messageId={chat.id}
                 />
             ));
-    }, [chats]);
+    }, [chats, welcomeChats, sessionId]);
 
     return (
         <div className='h-full w-full bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col'>
             <ScrollArea ref={scrollAreaRef} className="w-full flex-1 px-2 sm:px-4 md:px-8 lg:px-12 h-[500px]">
                 {
-                    (isPageLoading) ? (
+                    (isPageLoading && sessionId && chats.length === 0) ? (
                         Array.from({ length: 25 }).map((_, index) => (
                             <div className="w-full flex max-w-4xl mx-auto" style={{
                                 justifyContent: Math.random() > 0.2 ? "flex-start" : "flex-end",
