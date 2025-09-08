@@ -3,13 +3,16 @@ from dotenv import load_dotenv
 import os
 load_dotenv()
 
+# Use proxy only in production environment
+proxy_url = os.getenv("PINECONE_PROXY_URL") if os.getenv("PINECONE_PROXY_URL") else None
+
 pc = Pinecone(
     api_key=os.getenv("PINECONE_API_KEY"),
-    proxy_url="http://proxy.cs.ui.ac.id:8080"    
+    proxy_url=proxy_url
 )
 pc_2 = Pinecone(
     api_key=os.getenv("PINECONE_API_KEY_2"),
-    proxy_url="http://proxy.cs.ui.ac.id:8080"    
+    proxy_url=proxy_url
 )
 # index = pc.Index("lexin")
 index_list = pc.list_indexes()
