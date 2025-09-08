@@ -127,18 +127,30 @@ export function AppSidebar() {
 
     const groups = useMemo(() => {
         const today = new Date()
-        const todayString = today.toISOString().split("T")[0]
+
+        const todayString = today.getFullYear() + '-' + 
+            String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+            String(today.getDate()).padStart(2, '0')
         
         const todayChatSessions = sessions.filter((session) => {
             const sessionDate = new Date(session.last_updated_at)
-            return sessionDate.toISOString().split("T")[0] === todayString
+            const sessionDateString = sessionDate.getFullYear() + '-' + 
+                String(sessionDate.getMonth() + 1).padStart(2, '0') + '-' + 
+                String(sessionDate.getDate()).padStart(2, '0')
+            return sessionDateString === todayString
         })
         
         const yesterdayChatSessions = sessions.filter((session) => {
             const sessionDate = new Date(session.last_updated_at)
             const yesterday = new Date(today)
             yesterday.setDate(today.getDate() - 1)
-            return sessionDate.toISOString().split("T")[0] === yesterday.toISOString().split("T")[0]
+            const yesterdayString = yesterday.getFullYear() + '-' + 
+                String(yesterday.getMonth() + 1).padStart(2, '0') + '-' + 
+                String(yesterday.getDate()).padStart(2, '0')
+            const sessionDateString = sessionDate.getFullYear() + '-' + 
+                String(sessionDate.getMonth() + 1).padStart(2, '0') + '-' + 
+                String(sessionDate.getDate()).padStart(2, '0')
+            return sessionDateString === yesterdayString
         })
 
         const lastWeekChatSessions = sessions.filter((session) => {
@@ -147,14 +159,20 @@ export function AppSidebar() {
             const yesterday = new Date(today)
             yesterday.setDate(today.getDate() - 1)
             lastWeek.setDate(today.getDate() - 7)
-            return sessionDate >= lastWeek && sessionDate < yesterday && !yesterdayChatSessions.includes(session)
+            const sessionDateStart = new Date(sessionDate.getFullYear(), sessionDate.getMonth(), sessionDate.getDate())
+            const lastWeekStart = new Date(lastWeek.getFullYear(), lastWeek.getMonth(), lastWeek.getDate())
+            const yesterdayStart = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate())
+            return sessionDateStart >= lastWeekStart && sessionDateStart < yesterdayStart && !yesterdayChatSessions.includes(session)
         })
         
         const lastMonthChatSessions = sessions.filter((session) => {
             const sessionDate = new Date(session.last_updated_at)
             const lastMonth = new Date(today)
             lastMonth.setMonth(today.getMonth() - 1)
-            return (sessionDate >= lastMonth && sessionDate < today
+            const sessionDateStart = new Date(sessionDate.getFullYear(), sessionDate.getMonth(), sessionDate.getDate())
+            const lastMonthStart = new Date(lastMonth.getFullYear(), lastMonth.getMonth(), lastMonth.getDate())
+            const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+            return (sessionDateStart >= lastMonthStart && sessionDateStart < todayStart
                 && !lastWeekChatSessions.includes(session)
                 && !yesterdayChatSessions.includes(session)
                 && !todayChatSessions.includes(session)
@@ -166,8 +184,9 @@ export function AppSidebar() {
             const sessionDate = new Date(session.last_updated_at)
             const lastMonth = new Date(today)
             lastMonth.setMonth(today.getMonth() - 1)
-            lastMonth.setDate(today.getDate() - 1)
-            return sessionDate < lastMonth && !lastMonthChatSessions.includes(session)
+            const sessionDateStart = new Date(sessionDate.getFullYear(), sessionDate.getMonth(), sessionDate.getDate())
+            const lastMonthStart = new Date(lastMonth.getFullYear(), lastMonth.getMonth(), lastMonth.getDate())
+            return sessionDateStart < lastMonthStart && !lastMonthChatSessions.includes(session)
                 && !lastWeekChatSessions.includes(session)
                 && !yesterdayChatSessions.includes(session)
                 && !todayChatSessions.includes(session)
