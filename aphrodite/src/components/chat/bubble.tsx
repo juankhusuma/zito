@@ -63,35 +63,63 @@ function ActionBar(props: { text: string, history: any[], sessionId: string, mes
                 isDisliked ? "fill-[#192f59] hover:fill-none" : "hover:opacity-80"
             )} />
             <RotateCcw onClick={async () => {
-                const lastMessage = props.history[props.history.length - 1];
-                await supabase.from("chat").delete().eq("id", lastMessage.id);
-                const { data } = await supabase.auth.getSession()
-                if (!data.session) {
-                    console.error("No session found")
-                    return
+                try {
+                    const lastMessage = props.history[props.history.length - 1];
+                    const { error: deleteError } = await supabase.from("chat").delete().eq("id", lastMessage.id);
+                    if (deleteError) {
+                        console.error("Failed to delete last message:", deleteError);
+                        toast("Failed to delete previous message");
+                        return;
+                    }
+
+                    const { data, error: sessionError } = await supabase.auth.getSession();
+                    if (sessionError) {
+                        console.error("Failed to get session:", sessionError);
+                        toast("Authentication error");
+                        return;
+                    }
+                    if (!data.session) {
+                        console.error("No session found");
+                        toast("Please log in again");
+                        return;
+                    }
+
+                    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/chat`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            session_uid: props.sessionId,
+                            user_uid: user?.id,
+                            access_token: data.session.access_token,
+                            refresh_token: data.session.refresh_token,
+                            messages: [...props.history?.map((chat) => ({
+                                content: chat.content,
+                                role: chat.role,
+                                timestamp: chat.created_at
+                            }))]
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    toast("Regenerating response");
+                } catch (error) {
+                    console.error("Failed to regenerate response:", error);
+                    toast("Failed to regenerate response");
                 }
-                await fetch(`${import.meta.env.VITE_API_URL}/api/v1/chat`, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        session_uid: props.sessionId,
-                        user_uid: user?.id,
-                        access_token: data?.session?.access_token,
-                        refresh_token: data?.session?.refresh_token,
-                        messages: [...props.history?.map((chat) => ({
-                            content: chat.content,
-                            role: chat.role,
-                            timestamp: chat.created_at
-                        }))]
-                    })
-                })
-                toast("Regenerating response");
             }} size={15} color="#192f59" className="cursor-pointer transition-all" />
-            <Clipboard onClick={() => {
-                toast("Copied to clipboard")
-                navigator.clipboard.writeText(props.text);
+            <Clipboard onClick={async () => {
+                try {
+                    await navigator.clipboard.writeText(props.text);
+                    toast("Copied to clipboard");
+                } catch (error) {
+                    console.error("Failed to copy to clipboard:", error);
+                    toast("Failed to copy to clipboard");
+                }
             }} size={15} color="#192f59" className="hover:fill-[#192f59] cursor-pointer transition-all" />
         </div>
     )
@@ -112,8 +140,7 @@ function formatIEEEReference(doc: any, index: number): string {
 
 export default function ChatBubble(props: ChatBubbleProps) {
     const animatedText = useAnimatedText(props.message);
-    const text = (props.sender === "user" || props.isDone) ? props.message : animatedText;
-
+    let text = (props.sender === "user" || props.isDone) ? props.message : animatedText;
     let state = "loading";
     if (props.isSearching) {
         state = "searching";
@@ -167,10 +194,16 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                         props.isError && "text-red-700"
                                     )}>
                                         <Markdown remarkPlugins={[remarkGfm]} components={{
-                                            a: ({ node }) => {
-                                                let docId = (node?.properties?.href as string).replace("https://chat.lexin.cs.ui.ac.id/details/", "");
+                                            a: ({ node, children }) => {
+                                                const href = node?.properties?.href as string;
+                                                
+                                                // Handle non-citation links (fallback to regular link)
+                                                if (!href || !href.includes("chat.lexin.cs.ui.ac.id/details/")) {
+                                                    return <a href={href} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 underline">{children}</a>;
+                                                }
+                                                
+                                                let docId = href.replace("https://chat.lexin.cs.ui.ac.id/details/", "");
                                                 if (!docId) return null;
-                                                console.log("Document ID:", docId);
                                                 docId = docId.replace("%20", " ");
                                                 docId = docId.replace(/tahun_/ig, "");
                                                 docId = docId.replace("__", "_");
@@ -184,26 +217,29 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                 if (oldDocId.split("_").length === 3 && oldDocId.split("_")[1].length === 2) {
                                                     oldDocId = oldDocId.replace(/_0+([1-9]\d*)_/g, "_$1_");
                                                 }
-                                                console.log("Document ID after processing:", docId);
+                                                // Generate more possible ID variations for better matching
+                                                const possibleIds = new Set([
+                                                    docId,
+                                                    oldDocId,
+                                                    docId.replace(/_0+(\d+)_/g, "_$1_"), // Remove leading zeros: UU_05_2023 -> UU_5_2023  
+                                                    docId.replace(/_(\d{1})_/g, "_0$1_"), // Add leading zeros: UU_5_2023 -> UU_05_2023
+                                                    (node?.properties?.href as string).replace("https://chat.lexin.cs.ui.ac.id/details/", "") // Original URL-encoded version
+                                                ]);
 
                                                 let doc = null;
+
                                                 for (const document of props?.chat?.documents as any || []) {
-                                                    if (document._id === docId && !!document?.source && !document?.pasal) {
-                                                        doc = document;
-                                                        break;
+                                                    const documentId = document._id || document.id;
+                                                    
+                                                    // Check against all possible ID variations
+                                                    for (const possibleId of possibleIds) {
+                                                        if (documentId === possibleId && !!document?.source && !document?.pasal) {
+                                                            doc = document;
+                                                            break;
+                                                        }
                                                     }
-                                                    if (document.id === docId && !!document?.source && !document?.pasal) {
-                                                        doc = document;
-                                                        break;
-                                                    }
-                                                    if (document._id === oldDocId && !!document?.source && !document?.pasal) {
-                                                        doc = document;
-                                                        break;
-                                                    }
-                                                    if (document.id === oldDocId && !!document?.source && !document?.pasal) {
-                                                        doc = document;
-                                                        break;
-                                                    }
+                                                    
+                                                    if (doc) break; // Exit outer loop if found
                                                 }
 
                                                 if (!references.has(docId) && doc && doc.source && !references.has(oldDocId)) {
@@ -220,11 +256,47 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                 if (!doc && !fetchedIds.current.has(docId) && !fetchedIds.current.has(oldDocId) && !references.has(docId) && !references.has(oldDocId)) {
                                                     fetchedIds.current.add(docId);
                                                     fetchedIds.current.add(oldDocId);
-                                                    if (docId.split("_").length !== 3) {
-                                                        console.warn("Invalid document ID format:", docId);
-                                                        return <></>;
+                                                    
+                                                    // Special handling for common documents
+                                                    if (docId === "KUH_Perdata") {
+                                                        const newReferences = new Map(references);
+                                                        newReferences.set(docId, {
+                                                            number: newReferences.size + 1,
+                                                            href: href,
+                                                            doc: {
+                                                                _id: "KUH_Perdata",
+                                                                source: {
+                                                                    metadata: {
+                                                                        Judul: "Kitab Undang-Undang Hukum Perdata",
+                                                                        "Bentuk Singkat": "KUH Perdata",
+                                                                        Jenis: "Kitab Undang-Undang"
+                                                                    }
+                                                                }
+                                                            }
+                                                        });
+                                                        setReferences(newReferences);
                                                     }
-                                                    fetch(`https://chat.lexin.cs.ui.ac.id/elasticsearch/peraturan_indonesia/_search`, {
+                                                    
+                                                    if (docId.split("_").length !== 3) {
+                                                        // Create minimal reference instead of returning early
+                                                        const newReferences = new Map(references);
+                                                        newReferences.set(docId, {
+                                                            number: newReferences.size + 1,
+                                                            href: href,
+                                                            doc: {
+                                                                _id: docId,
+                                                                source: {
+                                                                    metadata: {
+                                                                        Judul: children as string || docId,
+                                                                        "Bentuk Singkat": docId
+                                                                    }
+                                                                }
+                                                            }
+                                                        });
+                                                        setReferences(newReferences);
+                                                        // Continue to Dialog rendering below, don't return early
+                                                    } else {
+                                                        fetch(`https://chat.lexin.cs.ui.ac.id/elasticsearch/peraturan_indonesia/_search`, {
                                                         method: "POST",
                                                         headers: {
                                                             "Content-Type": "application/json",
@@ -233,26 +305,15 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                         body: JSON.stringify({
                                                             query: {
                                                                 bool: {
-                                                                    should: [
-                                                                        {
-                                                                            match: {
-                                                                                _id: docId
-                                                                            }
-                                                                        },
-                                                                        {
-                                                                            match: {
-                                                                                _id: oldDocId
-                                                                            }
-                                                                        }
-                                                                    ]
+                                                                    should: Array.from(possibleIds).map(id => ({
+                                                                        match: { _id: id }
+                                                                    }))
                                                                 }
                                                             }
                                                         })
                                                     }).then(async (res) => {
-                                                        if (!res.ok) {
-                                                            console.error("Failed to fetch document:", res.statusText);
-                                                            return;
-                                                        }
+                                                        if (!res.ok) return;
+                                                        
                                                         const data = await res.json();
                                                         if (data.hits && data.hits.hits && data.hits.hits.length > 0) {
                                                             const d = data.hits.hits[0];
@@ -262,40 +323,93 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                                 source: d._source,
                                                                 pasal: d._source.pasal || null
                                                             };
-                                                            if (!doc || !doc.source) {
-                                                                console.warn("No source found for document ID:", docId);
-                                                                return <></>;
+                                                            if (doc && doc.source) {
+                                                                if (!props?.chat?.documents) {
+                                                                    props.chat.documents = [] as any;
+                                                                }
+                                                                (props?.chat?.documents as any)?.push(doc);
+                                                                const newReferences = new Map(references);
+                                                                newReferences.set(docId, {
+                                                                    number: newReferences.size + 1,
+                                                                    href: (node?.properties?.href as string),
+                                                                    doc
+                                                                });
+                                                                setReferences(newReferences);
                                                             }
-                                                            if (!props?.chat?.documents) {
-                                                                props.chat.documents = [] as any;
-                                                            }
-                                                            (props?.chat?.documents as any)?.push(doc);
-                                                            const newReferences = new Map(references);
-                                                            newReferences.set(docId, {
-                                                                number: newReferences.size + 1,
-                                                                href: (node?.properties?.href as string),
-                                                                doc
-                                                            });
-                                                            console.log("Saved document:", doc);
-                                                            setReferences(newReferences);
-                                                        } else {
-                                                            console.warn("No document found for ID:", docId);
                                                         }
                                                     }).catch((error) => {
-                                                        console.error("Error fetching document:", error);
+                                                        console.warn(`Failed to fetch document ${docId}:`, error.message);
                                                     });
+                                                    }
                                                 }
 
-                                                if (!doc || !doc.source || (!(references.get(docId) || references.get(oldDocId))?.doc?.source?.metadata?.Nomor && !references.get(oldDocId)?.doc?.source?.metadata?.Nomor)) {
-                                                    console.warn("No source found for document ID:", docId);
-                                                    return <></>;
+                                                // If we have minimal reference data, create a minimal doc object to proceed
+                                                if (!doc || !doc.source) {
+                                                    const refDoc = references.get(docId) || references.get(oldDocId);
+                                                    if (refDoc?.doc) {
+                                                        doc = refDoc.doc;
+                                                    } else {
+                                                        // Create minimal doc structure for rendering
+                                                        doc = {
+                                                            _id: docId,
+                                                            source: {
+                                                                metadata: {
+                                                                    Judul: children as string || docId,
+                                                                    "Bentuk Singkat": docId
+                                                                }
+                                                            }
+                                                        };
+                                                    }
+                                                }
+
+                                                // For documents without metadata, try to create minimal reference info
+                                                const refDoc = references.get(docId) || references.get(oldDocId);
+                                                if (!refDoc?.doc?.source?.metadata) {
+                                                    // Create minimal reference for documents like KUH_Perdata
+                                                    const newReferences = new Map(references);
+                                                    newReferences.set(docId, {
+                                                        number: newReferences.size + 1,
+                                                        href: (node?.properties?.href as string),
+                                                        doc: {
+                                                            ...doc,
+                                                            source: {
+                                                                ...doc.source,
+                                                                metadata: {
+                                                                    ...doc.source.metadata,
+                                                                    Judul: doc.source.metadata?.Judul || docId,
+                                                                    "Bentuk Singkat": doc.source.metadata?.["Bentuk Singkat"] || docId
+                                                                }
+                                                            }
+                                                        }
+                                                    });
+                                                    setReferences(newReferences);
                                                 }
 
                                                 return (
                                                     <a rel="noreferrer">
                                                         <Dialog>
                                                             <DialogTrigger className="bg-[#192f59] cursor-pointer text-white px-2 py-1 no-underline rounded-md hover:opacity-60 opacity-80 transition-opacity font-medium text-xs">
-                                                                {(references.get(docId) || references.get(oldDocId))?.doc?.source?.metadata?.["Bentuk Singkat"]} No. {(references.get(docId) || references.get(oldDocId))?.doc?.source?.metadata?.["Nomor"]} Tahun {(references.get(docId) || references.get(oldDocId))?.doc?.source?.metadata?.["Tahun"]}
+                                                                {(() => {
+                                                                    const refDoc = references.get(docId) || references.get(oldDocId);
+                                                                    const metadata = refDoc?.doc?.source?.metadata;
+                                                                    
+                                                                    if (!metadata) return docId;
+                                                                    
+                                                                    const bentukSingkat = metadata["Bentuk Singkat"] || metadata.Jenis || "";
+                                                                    const nomor = metadata.Nomor ? `No. ${metadata.Nomor}` : "";
+                                                                    const tahun = metadata.Tahun ? `Tahun ${metadata.Tahun}` : "";
+                                                                    
+                                                                    // Handle special cases like KUH_Perdata
+                                                                    if (docId === "KUH_Perdata") {
+                                                                        return "Kitab Undang-Undang Hukum Perdata";
+                                                                    }
+                                                                    if (docId === "UU_1_2023") {
+                                                                        return "KUHP Terbaru";
+                                                                    }
+                                                                    
+                                                                    // Build display text
+                                                                    return [bentukSingkat, nomor, tahun].filter(Boolean).join(" ") || metadata.Judul || docId;
+                                                                })()}
                                                             </DialogTrigger>
                                                             <DialogContent className="max-w-5xl w-[96vw] sm:w-[90vw] max-h-[85vh] p-0 overflow-hidden border-gray-200">
                                                                 {/* Header */}

@@ -49,12 +49,16 @@ GO DIRECTLY TO SEARCHING WITHOUT ANNOUNCING IT.
 - "I will look for relevant regulations..."
 - "To answer your question, I need to search..."
 
-# CITATION FORMAT
-- Format: [document_title](https://chat.lexin.cs.ui.ac.id/details/hits["_id"]) (Pasal {Pasal Number + 1 if exists})
+# CITATION FORMAT - CRITICAL RULES
+- Format: [document_title](https://chat.lexin.cs.ui.ac.id/details/document_id) (Pasal {Pasal Number} if exists)
   The id must be exactly the same as _id, if no document exist just dont give any citation
   Please do not write the id as document title and vice versa
   Please do not make up the document title and id, it will cause problems
   CITATION MUST BE A VALID MARKDOWN LINK
+
+  IMPORTANT: EVERY TIME YOU REFERENCE A DOCUMENT, YOU MUST INCLUDE THE FULL CITATION LINK
+  DO NOT write bare references like "(Pasal 1 ayat 1a(i))" without the full citation link
+  ALWAYS write: [Document Title](URL) (Pasal 1 ayat 1a(i))
 
   *Please note that for doc["_index"] == kuhper, write the id as "KUH_Perdata" and for doc["_index"] == kuhp, write the id as "UU_1_2023"*
   *Also note that for doc["_index"] == undang-undang, transform the format of the id from "UU_Nomor_{Number}_Tahun_{Year}___{Pasal} to UU_{Number}_{Year}"*
@@ -63,10 +67,12 @@ GO DIRECTLY TO SEARCHING WITHOUT ANNOUNCING IT.
   If the specific pasal is known, please tell the user that pasal number in the final answer
 - document_title should be in a human readable format as specified below, do not write the id as document title
 - document_title: {Regulation Type} Nomor {Number} Tahun {Year} tentang {About}
-- Example: [Peraturan Mahkamah Konstitusi  Nomor 3 Tahun 2021](https://chat.lexin.cs.ui.ac.id/details/Peraturan MK_3_2021)
+- Example: [Undang-Undang Nomor 5 Tahun 2023 tentang Ekstradisi](https://chat.lexin.cs.ui.ac.id/details/UU_5_2023_-_naskah_terjemahan) (Pasal 1 ayat 1a(i))
 - Include page numbers when available
 - Place citations at the end of referencing sections/paragraphs
 - NEVER cite documents that weren't found in search results
+
+REMEMBER: NO BARE REFERENCES WITHOUT CITATION LINKS! Every document reference must be a clickable markdown link.
 
 IF THE REFERENCE IS NOT IN THE SEARCH RESULTS, DO NOT CITE IT.
 I COULD BE PENALIZED FOR CITING NON-EXISTENT DOCUMENTS.
