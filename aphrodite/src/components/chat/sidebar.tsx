@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils"
 import { TooltipProvider, TooltipTrigger } from "@radix-ui/react-tooltip"
 import { Tooltip, TooltipContent } from "../ui/tooltip"
 import { Input } from "@/components/ui/input"
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 
 interface Session {
     id: string
@@ -39,15 +39,21 @@ const fetchSessions = async (userId: string): Promise<Session[]> => {
         .from("session")
         .select("*")
         .eq("user_uid", userId)
-        .order('last_updated_at', { ascending: false });
-    
-    if (error) {
-        throw new Error(error.message);
-    }
-    
-    return data || [];
-};
+        .order("last_updated_at", { ascending: false })
 
+    if (error) {
+        throw new Error(error.message)
+    }
+    return data || []
+}
+
+// Helpers
+const dateKey = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+
+const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
+
+// Sidebar
 export function AppSidebar() {
     const { user, loading } = useAuth()
     const navigate = useNavigate()
@@ -55,17 +61,18 @@ export function AppSidebar() {
     const [searchQuery, setSearchQuery] = useState("")
     const queryClient = useQueryClient()
 
-    const { 
-        data: sessions = [], 
-        isLoading: sidebarLoading 
+    const {
+        data: sessions = [],
+        isLoading: sidebarLoading,
     } = useQuery({
-        queryKey: ['sessions', user?.id],
-        queryFn: () => user?.id ? fetchSessions(user.id) : Promise.resolve([]),
+        queryKey: ["sessions", user?.id],
+        queryFn: () => (user?.id ? fetchSessions(user.id) : Promise.resolve([])),
         enabled: !!user?.id,
         staleTime: 3 * 60 * 1000, // 3 minutes
         refetchOnWindowFocus: true,
     })
 
+    // Redirect kalau user belum login
     useEffect(() => {
         if (!loading && !user) {
             console.log("User not found, redirecting to login")
@@ -73,144 +80,92 @@ export function AppSidebar() {
         }
     }, [user, loading])
 
+    // Realtime update sessions
     useEffect(() => {
-        if (!user?.id) return;
+        if (!user?.id) return
 
         const channel = supabase.realtime.channel(`session:${user.id}`)
             .on("postgres_changes", {
                 schema: "public",
                 table: "session",
                 event: "UPDATE",
-                filter: `user_uid=eq.${user.id}`
+                filter: `user_uid=eq.${user.id}`,
             }, (payload) => {
-                console.log("Updated session:", payload)
-                queryClient.setQueryData(['sessions', user.id], (oldData: Session[] = []) => 
-                    oldData.map((session) =>
-                        session.id === payload.new.id ? payload.new as Session : session)
-                );
+                queryClient.setQueryData(["sessions", user.id], (oldData: Session[] = []) =>
+                    oldData.map((s) => (s.id === payload.new.id ? (payload.new as Session) : s))
+                )
             })
             .on("postgres_changes", {
                 schema: "public",
                 table: "session",
                 event: "INSERT",
-                filter: `user_uid=eq.${user.id}`
+                filter: `user_uid=eq.${user.id}`,
             }, (payload) => {
-                console.log("New session:", payload)
-                queryClient.setQueryData(['sessions', user.id], (oldData: Session[] = []) => 
+                queryClient.setQueryData(["sessions", user.id], (oldData: Session[] = []) =>
                     [payload.new as Session, ...oldData]
-                );
+                )
             })
             .on("postgres_changes", {
                 schema: "public",
                 table: "session",
                 event: "DELETE",
-                filter: `user_uid=eq.${user.id}`
+                filter: `user_uid=eq.${user.id}`,
             }, (payload) => {
-                console.log("Deleted session:", payload)
-                queryClient.setQueryData(['sessions', user.id], (oldData: Session[] = []) => 
-                    oldData.filter(session => session.id !== payload.old.id)
-                );
+                queryClient.setQueryData(["sessions", user.id], (oldData: Session[] = []) =>
+                    oldData.filter((s) => s.id !== payload.old.id)
+                )
             })
 
-        channel.subscribe((status, err) => {
-            console.log("Realtime session status:", status)
-            if (err) {
-                console.error("Realtime session error:", err)
-            }
-        })
+        channel.subscribe()
 
         return () => {
-            console.log("Unsubscribing from realtime channel")
             supabase.realtime.removeChannel(channel)
         }
     }, [user?.id, queryClient])
 
+    // Grouping 
     const groups = useMemo(() => {
-        const today = new Date()
+        const now = new Date()
+        const todayStart = startOfDay(now)
+        const yesterdayStart = new Date(todayStart); yesterdayStart.setDate(todayStart.getDate() - 1)
+        const weekStart = new Date(todayStart); weekStart.setDate(todayStart.getDate() - 7)
+        const monthStart = new Date(todayStart); monthStart.setMonth(todayStart.getMonth() - 1)
 
-        const todayString = today.getFullYear() + '-' + 
-            String(today.getMonth() + 1).padStart(2, '0') + '-' + 
-            String(today.getDate()).padStart(2, '0')
-        
-        const todayChatSessions = sessions.filter((session) => {
-            const sessionDate = new Date(session.last_updated_at)
-            const sessionDateString = sessionDate.getFullYear() + '-' + 
-                String(sessionDate.getMonth() + 1).padStart(2, '0') + '-' + 
-                String(sessionDate.getDate()).padStart(2, '0')
-            return sessionDateString === todayString
-        })
-        
-        const yesterdayChatSessions = sessions.filter((session) => {
-            const sessionDate = new Date(session.last_updated_at)
-            const yesterday = new Date(today)
-            yesterday.setDate(today.getDate() - 1)
-            const yesterdayString = yesterday.getFullYear() + '-' + 
-                String(yesterday.getMonth() + 1).padStart(2, '0') + '-' + 
-                String(yesterday.getDate()).padStart(2, '0')
-            const sessionDateString = sessionDate.getFullYear() + '-' + 
-                String(sessionDate.getMonth() + 1).padStart(2, '0') + '-' + 
-                String(sessionDate.getDate()).padStart(2, '0')
-            return sessionDateString === yesterdayString
+        const kToday = dateKey(now)
+        const kYesterday = dateKey(yesterdayStart)
+
+        const dOf = (iso: string) => new Date(iso)
+        const kOf = (iso: string) => dateKey(dOf(iso))
+        const sod = (iso: string) => startOfDay(dOf(iso))
+
+        const todayChatSessions = sessions.filter((s) => kOf(s.last_updated_at) === kToday)
+        const yesterdayChatSessions = sessions.filter((s) => kOf(s.last_updated_at) === kYesterday)
+
+        const lastWeekChatSessions = sessions.filter((s) => {
+            const d = sod(s.last_updated_at)
+            return d >= weekStart && d < yesterdayStart
         })
 
-        const lastWeekChatSessions = sessions.filter((session) => {
-            const sessionDate = new Date(session.last_updated_at)
-            const lastWeek = new Date(today)
-            const yesterday = new Date(today)
-            yesterday.setDate(today.getDate() - 1)
-            lastWeek.setDate(today.getDate() - 7)
-            const sessionDateStart = new Date(sessionDate.getFullYear(), sessionDate.getMonth(), sessionDate.getDate())
-            const lastWeekStart = new Date(lastWeek.getFullYear(), lastWeek.getMonth(), lastWeek.getDate())
-            const yesterdayStart = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate())
-            return sessionDateStart >= lastWeekStart && sessionDateStart < yesterdayStart && !yesterdayChatSessions.includes(session)
-        })
-        
-        const lastMonthChatSessions = sessions.filter((session) => {
-            const sessionDate = new Date(session.last_updated_at)
-            const lastMonth = new Date(today)
-            lastMonth.setMonth(today.getMonth() - 1)
-            const sessionDateStart = new Date(sessionDate.getFullYear(), sessionDate.getMonth(), sessionDate.getDate())
-            const lastMonthStart = new Date(lastMonth.getFullYear(), lastMonth.getMonth(), lastMonth.getDate())
-            const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-            return (sessionDateStart >= lastMonthStart && sessionDateStart < todayStart
-                && !lastWeekChatSessions.includes(session)
-                && !yesterdayChatSessions.includes(session)
-                && !todayChatSessions.includes(session)
-            )
+        const lastMonthChatSessions = sessions.filter((s) => {
+            const d = sod(s.last_updated_at)
+            return d >= monthStart && d < weekStart
         })
 
-        const groupedOlderChatSessions: { [key: string]: Session[] } = {}
-        const olderChatSessions = sessions.filter((session) => {
-            const sessionDate = new Date(session.last_updated_at)
-            const lastMonth = new Date(today)
-            lastMonth.setMonth(today.getMonth() - 1)
-            const sessionDateStart = new Date(sessionDate.getFullYear(), sessionDate.getMonth(), sessionDate.getDate())
-            const lastMonthStart = new Date(lastMonth.getFullYear(), lastMonth.getMonth(), lastMonth.getDate())
-            return sessionDateStart < lastMonthStart && !lastMonthChatSessions.includes(session)
-                && !lastWeekChatSessions.includes(session)
-                && !yesterdayChatSessions.includes(session)
-                && !todayChatSessions.includes(session)
-        })
-        
-        olderChatSessions.forEach((session) => {
-            const sessionDate = new Date(session.last_updated_at)
-            const monthYear = sessionDate.toLocaleString("default", { month: "long", year: "numeric" })
-            if (!groupedOlderChatSessions[monthYear]) {
-                groupedOlderChatSessions[monthYear] = []
+        const groupedOlderChatSessions: Record<string, Session[]> = {}
+        sessions.forEach((s) => {
+            const d = sod(s.last_updated_at)
+            if (d < monthStart) {
+                const label = d.toLocaleString("id-ID", { month: "long", year: "numeric" })
+                ;(groupedOlderChatSessions[label] ??= []).push(s)
             }
-            groupedOlderChatSessions[monthYear].push(session)
         })
 
-        const sortByDate = (a: Session, b: Session) => new Date(b.last_updated_at).getTime() - new Date(a.last_updated_at).getTime();
-        
-        todayChatSessions.sort(sortByDate)
-        yesterdayChatSessions.sort(sortByDate)
-        lastWeekChatSessions.sort(sortByDate)
-        lastMonthChatSessions.sort(sortByDate)
-        
-        Object.keys(groupedOlderChatSessions).forEach((key) => {
-            groupedOlderChatSessions[key].sort(sortByDate)
-        })
+        const sortByDate = (a: Session, b: Session) =>
+            dOf(b.last_updated_at).getTime() - dOf(a.last_updated_at).getTime()
+
+        ;[todayChatSessions, yesterdayChatSessions, lastWeekChatSessions, lastMonthChatSessions]
+            .forEach((arr) => arr.sort(sortByDate))
+        Object.values(groupedOlderChatSessions).forEach((arr) => arr.sort(sortByDate))
 
         return {
             "Today": todayChatSessions,
@@ -221,27 +176,24 @@ export function AppSidebar() {
         }
     }, [sessions])
 
+    // Search filter
     const filteredGroups = useMemo(() => {
-        if (!searchQuery.trim()) {
-            return groups;
-        }
+        if (!searchQuery.trim()) return groups
 
-        const query = searchQuery.toLowerCase();
-        const filtered: { [key: string]: Session[] } = {};
+        const query = searchQuery.toLowerCase()
+        const filtered: { [key: string]: Session[] } = {}
 
-        Object.entries(groups).forEach(([groupName, groupSessions]) => {
-            const matchingSessions = groupSessions.filter(
-                session => session.title.toLowerCase().includes(query)
-            );
+        Object.entries(groups).forEach(([label, sessions]) => {
+            const matches = sessions.filter((s) =>
+                s.title.toLowerCase().includes(query)
+            )
+            if (matches.length > 0) filtered[label] = matches
+        })
 
-            if (matchingSessions.length > 0) {
-                filtered[groupName] = matchingSessions;
-            }
-        });
+        return filtered
+    }, [searchQuery, groups])
 
-        return filtered;
-    }, [searchQuery, groups]);
-
+    // Render
     return (
         <Sidebar collapsible="offcanvas" className="absolute border-t h-full flex-1 bg-gray-100 shadow-sm z-[50]">
             <TooltipProvider>
@@ -275,8 +227,8 @@ export function AppSidebar() {
                 <SidebarContent className="px-2">
                     {(sidebarLoading && sessions.length === 0) && (
                         <SidebarMenu>
-                            {Array.from({ length: 6 }).map((_, index) => (
-                                <SidebarMenuItem key={index} className="mb-1">
+                            {Array.from({ length: 6 }).map((_, idx) => (
+                                <SidebarMenuItem key={idx} className="mb-1">
                                     <SidebarMenuSkeleton className="h-10" />
                                 </SidebarMenuItem>
                             ))}
@@ -291,19 +243,19 @@ export function AppSidebar() {
 
                     {!sidebarLoading && Object.entries(filteredGroups)
                         .filter(([_, sessions]) => sessions.length > 0)
-                        .map(([group, sessions]) => (
-                            <SidebarGroup key={group}>
+                        .map(([label, sessions]) => (
+                            <SidebarGroup key={label}>
                                 <SidebarGroupLabel className="px-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    {group}
+                                    {label}
                                 </SidebarGroupLabel>
                                 <SidebarGroupContent>
                                     <SidebarMenu>
-                                        {sessions.map((session) => (
+                                        {sessions.map((s) => (
                                             <SidebarMenuItem
-                                                key={session.id}
+                                                key={s.id}
                                                 className={cn(
                                                     "cursor-pointer group/session rounded-md mb-1 overflow-hidden",
-                                                    sessionId === session.id ? "bg-[#192f59]/10" : "hover:bg-gray-100"
+                                                    sessionId === s.id ? "bg-[#192f59]/10" : "hover:bg-gray-100"
                                                 )}
                                             >
                                                 <Tooltip>
@@ -311,18 +263,18 @@ export function AppSidebar() {
                                                         <span className="flex-1">
                                                             <SidebarMenuButton asChild>
                                                                 <div
-                                                                    onClick={() => navigate(session.id)}
+                                                                    onClick={() => navigate(s.id)}
                                                                     className={cn(
                                                                         "flex items-center py-2 pl-3 pr-1 text-sm font-medium truncate transition-colors",
-                                                                        sessionId === session.id ? "text-[#192f59]" : "text-gray-700"
+                                                                        sessionId === s.id ? "text-[#192f59]" : "text-gray-700"
                                                                     )}
                                                                 >
-                                                                    <span className="truncate">{session.title}</span>
+                                                                    <span className="truncate">{s.title}</span>
                                                                 </div>
                                                             </SidebarMenuButton>
                                                         </span>
                                                     </TooltipTrigger>
-                                                    <TooltipContent side="right">{session.title}</TooltipContent>
+                                                    <TooltipContent side="right">{s.title}</TooltipContent>
                                                 </Tooltip>
 
                                                 <DropdownMenu>
@@ -336,19 +288,18 @@ export function AppSidebar() {
                                                     <DropdownMenuContent side="right" align="start" className="w-48">
                                                         <DropdownMenuItem
                                                             onClick={async () => {
-                                                                if (!user) return;
-                                                                const { error } = await supabase.from("session").delete().eq("id", session.id)
+                                                                if (!user) return
+                                                                const { error } = await supabase.from("session").delete().eq("id", s.id)
                                                                 if (error) {
                                                                     console.error("Error deleting session:", error)
-                                                                    return;
+                                                                    return
                                                                 }
-                                                                if (sessionId === session.id) {
+                                                                if (sessionId === s.id) {
                                                                     navigate("/chat")
                                                                 }
-                                                                // Update React Query cache
-                                                                queryClient.setQueryData(['sessions', user.id], (oldData: Session[] = []) => 
-                                                                    oldData.filter(s => s.id !== session.id)
-                                                                );
+                                                                queryClient.setQueryData(["sessions", user.id], (oldData: Session[] = []) =>
+                                                                    oldData.filter((ss) => ss.id !== s.id)
+                                                                )
                                                             }}
                                                             className="text-red-600 cursor-pointer focus:bg-red-50 focus:text-red-700"
                                                         >
@@ -364,6 +315,7 @@ export function AppSidebar() {
                             </SidebarGroup>
                         ))}
                 </SidebarContent>
+
                 <SidebarFooter className="p-3 border-t">
                     <div className="text-xs text-center text-gray-500">
                         <p>Lexin Chat © {new Date().getFullYear()}</p>
