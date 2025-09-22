@@ -8,7 +8,7 @@ import { toast } from "sonner"
 import supabase from "@/common/supabase";
 import { useAuth } from "@/hoc/AuthProvider";
 import { Chat } from "@/pages/chat/Session";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import { ScrollArea } from "../ui/scroll-area";
 import { TooltipProvider } from "@radix-ui/react-tooltip";
@@ -30,12 +30,23 @@ interface ChatBubbleProps {
     history: any[];
     sessionId: string;
     messageId: string;
+    thinkingStartTime?: Date;
+    finalThinkingDuration?: number;
 }
 
-function ActionBar(props: { text: string, history: any[], sessionId: string, messageId: string, chat: Chat }) {
+function ActionBar(props: { text: string, history: any[], sessionId: string, messageId: string, chat: Chat, finalThinkingDuration?: number }) {
     const { user } = useAuth();
     const [isLiked, setIsLiked] = useState(!!props.chat.is_liked);
     const [isDisliked, setIsDisliked] = useState(!!props.chat.is_disliked);
+
+    const formatFinalDuration = (ms: number): string => {
+        const seconds = ms / 1000;
+        if (seconds < 10) {
+            return `${seconds.toFixed(1)}s`;
+        }
+        return `${Math.floor(seconds)}s`;
+    };
+
     return (
         <div className="flex items-center gap-3">
             <ThumbsUp onClick={() => {
@@ -121,8 +132,49 @@ function ActionBar(props: { text: string, history: any[], sessionId: string, mes
                     toast("Failed to copy to clipboard");
                 }
             }} size={15} color="#192f59" className="hover:fill-[#192f59] cursor-pointer transition-all" />
+
+            {/* Display final thinking duration */}
+            {props.finalThinkingDuration && props.finalThinkingDuration > 500 && (
+                <div className="text-xs text-gray-500 ml-2 flex items-center gap-1">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12,6 12,12 16,14"/>
+                    </svg>
+                    <span>Berpikir {formatFinalDuration(props.finalThinkingDuration)}</span>
+                </div>
+            )}
         </div>
     )
+}
+
+// Custom hook for timer functionality
+function useTimer(startTime?: Date, isActive: boolean = false) {
+    const [elapsedTime, setElapsedTime] = useState(0);
+
+    useEffect(() => {
+        if (!startTime || !isActive) {
+            setElapsedTime(0);
+            return;
+        }
+
+        const interval = setInterval(() => {
+            const now = new Date();
+            const elapsed = now.getTime() - startTime.getTime();
+            setElapsedTime(elapsed);
+        }, 100); // Update every 100ms for smooth display
+
+        return () => clearInterval(interval);
+    }, [startTime, isActive]);
+
+    const formatTime = useCallback((ms: number): string => {
+        const seconds = ms / 1000;
+        if (seconds < 10) {
+            return `${seconds.toFixed(1)}s`;
+        }
+        return `${Math.floor(seconds)}s`;
+    }, []);
+
+    return { elapsedTime, formatTime };
 }
 
 function formatIEEEReference(doc: any, index: number): string {
@@ -181,14 +233,14 @@ export default function ChatBubble(props: ChatBubbleProps) {
                 >
                     {(props.isLoading || props.isSearching) ? (
                         <div className="flex items-center space-x-2">
-                            <MessageLoading state={state} />
+                            <MessageLoading state={state} thinkingStartTime={props.thinkingStartTime} />
                         </div>
                     ) : (
                         props.sender === "user" ? (<p className="prose prose-sm">{text}</p>)
                             : (
                                 <div>
                                     {(props.isExtracting) && (
-                                        <MessageLoading state={state} />
+                                        <MessageLoading state={state} thinkingStartTime={props.thinkingStartTime} />
                                     )}
                                     <div className={cn("prose prose-headings:text-base prose-sm max-w-full prose-pre:font-mono prose-code:font-mono",
                                         props.isError && "text-red-700"
@@ -746,7 +798,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                             </div>
                                         )}
 
-                                        <ActionBar chat={props.chat} messageId={props.messageId} sessionId={props.sessionId} text={text} history={props.history} />
+                                        <ActionBar chat={props.chat} messageId={props.messageId} sessionId={props.sessionId} text={text} history={props.history} finalThinkingDuration={props.finalThinkingDuration} />
                                     </div>
                                 </div>
                             )
@@ -758,35 +810,42 @@ export default function ChatBubble(props: ChatBubbleProps) {
     )
 }
 
-function MessageLoading({ state }: {
-    state: string
+function MessageLoading({ state, thinkingStartTime }: {
+    state: string;
+    thinkingStartTime?: Date;
 }) {
-    if (state === "searching") return (
-        <TextShimmerWave
-            className='[--base-color:#0f5a9c] [--base-gradient-color:#192f59] text-sm'
-            duration={0.75}
-            spread={1}
-            zDistance={1}
-            scaleDistance={1.01}
-            rotateYDistance={10}
-        >
-            Mencari Undang-Undang dan Peraturan yang relevan...
-        </TextShimmerWave>
-    )
+    const { elapsedTime, formatTime } = useTimer(
+        thinkingStartTime,
+        state === "loading" || state === "searching" || state === "extracting"
+    );
 
+    const getLoadingText = () => {
+        const timeDisplay = thinkingStartTime ? ` (${formatTime(elapsedTime)})` : '';
 
-    if (state === "extracting") return (
-        <TextShimmerWave
-            className='[--base-color:#0f5a9c] [--base-gradient-color:#192f59] text-sm'
-            duration={0.75}
-            spread={1}
-            zDistance={1}
-            scaleDistance={1.01}
-            rotateYDistance={10}
-        >
-            Menganalisa hasil pencarian...
-        </TextShimmerWave>
-    )
+        switch (state) {
+            case "searching":
+                return `Mencari Undang-Undang dan Peraturan yang relevan...${timeDisplay}`;
+            case "extracting":
+                return `Menganalisa hasil pencarian...${timeDisplay}`;
+            default:
+                return `Sedang berpikir...${timeDisplay}`;
+        }
+    };
+
+    if (state === "searching" || state === "extracting" || (state === "loading" && thinkingStartTime)) {
+        return (
+            <TextShimmerWave
+                className='[--base-color:#0f5a9c] [--base-gradient-color:#192f59] text-sm'
+                duration={0.75}
+                spread={1}
+                zDistance={1}
+                scaleDistance={1.01}
+                rotateYDistance={10}
+            >
+                {getLoadingText()}
+            </TextShimmerWave>
+        );
+    }
 
     return (
         <svg

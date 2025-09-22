@@ -23,6 +23,7 @@ export interface Chat {
     is_disliked?: boolean;
     documents?: string;
     state: "done" | "loading" | "error" | "generating" | "searching" | "extracting";
+    thinking_start_time?: string;
 }
 
 const fetchChats = async (sessionId: string): Promise<Chat[]> => {
@@ -62,6 +63,8 @@ export default function Session() {
     })
 
     const [isLoading, setIsLoading] = React.useState(false)
+    const [thinkingStartTimes, setThinkingStartTimes] = React.useState<Record<string, Date>>({})
+    const [finalThinkingDurations, setFinalThinkingDurations] = React.useState<Record<string, number>>({})
 
     const newSessionChat = async (question: string) => {
         if (!user || !question || question.trim() === "") return
@@ -128,6 +131,44 @@ export default function Session() {
 
     useEffect(() => {
         setIsLoading(chats.some((chat) => chat.state === "loading"))
+    }, [chats])
+
+    useEffect(() => {
+        // Track thinking start times for loading chats
+        chats.forEach((chat) => {
+            if (chat.state === "loading" || chat.state === "searching" || chat.state === "extracting") {
+                setThinkingStartTimes(prev => {
+                    // Only set if not already tracking this chat
+                    if (!prev[chat.id]) {
+                        return {
+                            ...prev,
+                            [chat.id]: new Date()
+                        };
+                    }
+                    return prev;
+                });
+            } else if (chat.state === "done" || chat.state === "error") {
+                // Calculate final thinking duration before cleanup
+                setThinkingStartTimes(prev => {
+                    if (prev[chat.id]) {
+                        const endTime = new Date();
+                        const duration = endTime.getTime() - prev[chat.id].getTime();
+
+                        // Store final duration
+                        setFinalThinkingDurations(prevDurations => ({
+                            ...prevDurations,
+                            [chat.id]: duration
+                        }));
+
+                        // Clean up start time
+                        const updated = { ...prev };
+                        delete updated[chat.id];
+                        return updated;
+                    }
+                    return prev;
+                });
+            }
+        });
     }, [chats])
 
     useEffect(() => {
@@ -231,9 +272,11 @@ export default function Session() {
                     history={chatData}
                     sessionId={sessionId || ""}
                     messageId={chat.id}
+                    thinkingStartTime={thinkingStartTimes[chat.id]}
+                    finalThinkingDuration={finalThinkingDurations[chat.id]}
                 />
             ));
-    }, [chats, welcomeChats, sessionId]);
+    }, [chats, welcomeChats, sessionId, thinkingStartTimes, finalThinkingDurations]);
 
     return (
         <div className='h-full w-full bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col'>
