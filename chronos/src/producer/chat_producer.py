@@ -40,7 +40,9 @@ class ChatProducer:
     @classmethod
     async def publish(klass, message: History):
         if klass.conn is None or klass.conn.is_closed:
-            await klass.connect()
+            import asyncio
+            loop = asyncio.get_running_loop()
+            await klass.connect(loop)
 
         try:
             await klass.channel.default_exchange.publish(

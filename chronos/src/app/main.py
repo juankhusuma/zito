@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from ..producer.chat_producer import ChatProducer
 from contextlib import asynccontextmanager
 import logging
+import asyncio
 
 router = APIRouter()
 
@@ -13,12 +14,17 @@ router = APIRouter()
 async def lifespan(app: FastAPI):
     loop = get_running_loop()
     task = loop.create_task(ChatProducer.connect(loop))
-    await task
     logger = logging.getLogger("uvicorn.access")
     handler = logging.StreamHandler()
     handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
     logger.addHandler(handler)
     yield
+    # Clean up the task when shutting down
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
 
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(

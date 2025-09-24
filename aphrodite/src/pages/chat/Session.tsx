@@ -24,6 +24,7 @@ export interface Chat {
     documents?: string;
     state: "done" | "loading" | "error" | "generating" | "searching" | "extracting";
     thinking_start_time?: string;
+    thinking_duration?: number;
 }
 
 const fetchChats = async (sessionId: string): Promise<Chat[]> => {
@@ -273,7 +274,7 @@ export default function Session() {
                     sessionId={sessionId || ""}
                     messageId={chat.id}
                     thinkingStartTime={thinkingStartTimes[chat.id]}
-                    finalThinkingDuration={finalThinkingDurations[chat.id]}
+                    finalThinkingDuration={('thinking_duration' in chat ? chat.thinking_duration : null) || finalThinkingDurations[chat.id]}
                 />
             ));
     }, [chats, welcomeChats, sessionId, thinkingStartTimes, finalThinkingDurations]);
@@ -332,7 +333,7 @@ export default function Session() {
                                 user_uid: user.id,
                                 access_token: data.session?.access_token,
                                 refresh_token: data.session?.refresh_token,
-                                messages: [...chats.map((chat) => ({
+                                                messages: [...chats.map((chat) => ({
                                     content: chat.content,
                                     role: chat.role,
                                     timestamp: chat.created_at
