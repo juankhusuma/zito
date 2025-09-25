@@ -40,11 +40,17 @@ function ActionBar(props: { text: string, history: any[], sessionId: string, mes
     const [isDisliked, setIsDisliked] = useState(!!props.chat.is_disliked);
 
     const formatFinalDuration = (ms: number): string => {
-        const seconds = ms / 1000;
-        if (seconds < 10) {
-            return `${seconds.toFixed(1)}s`;
+        if (ms < 1000) {
+            return `${ms} ms`;
+        } else if (ms < 10000) {
+            return `${(ms / 1000).toFixed(1)} s`;
+        } else if (ms < 60000) {
+            return `${Math.round(ms / 1000)} s`;
+        } else {
+            const minutes = Math.floor(ms / 60000);
+            const seconds = Math.round((ms % 60000) / 1000);
+            return `${minutes}m ${seconds}s`;
         }
-        return `${Math.floor(seconds)}s`;
     };
 
     return (
@@ -167,11 +173,17 @@ function useTimer(startTime?: Date, isActive: boolean = false) {
     }, [startTime, isActive]);
 
     const formatTime = useCallback((ms: number): string => {
-        const seconds = ms / 1000;
-        if (seconds < 10) {
-            return `${seconds.toFixed(1)}s`;
+        if (ms < 1000) {
+            return `${Math.round(ms)} ms`;
+        } else if (ms < 10000) {
+            return `${(ms / 1000).toFixed(1)} s`;
+        } else if (ms < 60000) {
+            return `${Math.round(ms / 1000)} s`;
+        } else {
+            const minutes = Math.floor(ms / 60000);
+            const seconds = Math.round((ms % 60000) / 1000);
+            return `${minutes}m ${seconds}s`;
         }
-        return `${Math.floor(seconds)}s`;
     }, []);
 
     return { elapsedTime, formatTime };
