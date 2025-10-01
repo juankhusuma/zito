@@ -17,41 +17,16 @@ import {
 } from "@/components/ui/sidebar"
 import { useAuth } from "@/hoc/AuthProvider"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { MessageSquarePlus, MoreHorizontal, Search, Trash2 } from "lucide-react"
-import { useEffect, useState, useMemo } from "react"
+import { MessageSquarePlus, MoreHorizontal, Trash2 } from "lucide-react"
+import { useEffect, useState } from "react"
 import { useNavigate, useParams } from "react-router"
 import PrimaryButton from "../button"
 import { cn } from "@/lib/utils"
 import { TooltipProvider, TooltipTrigger } from "@radix-ui/react-tooltip"
 import { Tooltip, TooltipContent } from "../ui/tooltip"
-import { Input } from "@/components/ui/input"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
-
-interface Session {
-    id: string
-    title: string
-    last_updated_at: string
-    user_uid: string
-}
-
-const fetchSessions = async (userId: string): Promise<Session[]> => {
-    const { data, error } = await supabase
-        .from("session")
-        .select("*")
-        .eq("user_uid", userId)
-        .order("last_updated_at", { ascending: false })
-
-    if (error) {
-        throw new Error(error.message)
-    }
-    return data || []
-}
-
-// Helpers
-const dateKey = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
-
-const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
+import { useSessions, Session } from "@/hooks/useSessions"
+import { SessionSearch, useSessionSearch } from "./SessionSearch"
+import { useQueryClient } from "@tanstack/react-query"
 
 // Sidebar
 export function AppSidebar() {
@@ -60,17 +35,8 @@ export function AppSidebar() {
     const { sessionId } = useParams()
     const [searchQuery, setSearchQuery] = useState("")
     const queryClient = useQueryClient()
-
-    const {
-        data: sessions = [],
-        isLoading: sidebarLoading,
-    } = useQuery({
-        queryKey: ["sessions", user?.id],
-        queryFn: () => (user?.id ? fetchSessions(user.id) : Promise.resolve([])),
-        enabled: !!user?.id,
-        staleTime: 3 * 60 * 1000, // 3 minutes
-        refetchOnWindowFocus: true,
-    })
+    const { sessions, sidebarLoading, groups } = useSessions(user?.id)
+    const filteredGroups = useSessionSearch(searchQuery, groups)
 
     // Redirect kalau user belum login
     useEffect(() => {
@@ -79,119 +45,6 @@ export function AppSidebar() {
             window.location.href = "/login?next=/chat"
         }
     }, [user, loading])
-
-    // Realtime update sessions
-    useEffect(() => {
-        if (!user?.id) return
-
-        const channel = supabase.realtime.channel(`session:${user.id}`)
-            .on("postgres_changes", {
-                schema: "public",
-                table: "session",
-                event: "UPDATE",
-                filter: `user_uid=eq.${user.id}`,
-            }, (payload) => {
-                queryClient.setQueryData(["sessions", user.id], (oldData: Session[] = []) =>
-                    oldData.map((s) => (s.id === payload.new.id ? (payload.new as Session) : s))
-                )
-            })
-            .on("postgres_changes", {
-                schema: "public",
-                table: "session",
-                event: "INSERT",
-                filter: `user_uid=eq.${user.id}`,
-            }, (payload) => {
-                queryClient.setQueryData(["sessions", user.id], (oldData: Session[] = []) =>
-                    [payload.new as Session, ...oldData]
-                )
-            })
-            .on("postgres_changes", {
-                schema: "public",
-                table: "session",
-                event: "DELETE",
-                filter: `user_uid=eq.${user.id}`,
-            }, (payload) => {
-                queryClient.setQueryData(["sessions", user.id], (oldData: Session[] = []) =>
-                    oldData.filter((s) => s.id !== payload.old.id)
-                )
-            })
-
-        channel.subscribe()
-
-        return () => {
-            supabase.realtime.removeChannel(channel)
-        }
-    }, [user?.id, queryClient])
-
-    // Grouping 
-    const groups = useMemo(() => {
-        const now = new Date()
-        const todayStart = startOfDay(now)
-        const yesterdayStart = new Date(todayStart); yesterdayStart.setDate(todayStart.getDate() - 1)
-        const weekStart = new Date(todayStart); weekStart.setDate(todayStart.getDate() - 7)
-        const monthStart = new Date(todayStart); monthStart.setMonth(todayStart.getMonth() - 1)
-
-        const kToday = dateKey(now)
-        const kYesterday = dateKey(yesterdayStart)
-
-        const dOf = (iso: string) => new Date(iso)
-        const kOf = (iso: string) => dateKey(dOf(iso))
-        const sod = (iso: string) => startOfDay(dOf(iso))
-
-        const todayChatSessions = sessions.filter((s) => kOf(s.last_updated_at) === kToday)
-        const yesterdayChatSessions = sessions.filter((s) => kOf(s.last_updated_at) === kYesterday)
-
-        const lastWeekChatSessions = sessions.filter((s) => {
-            const d = sod(s.last_updated_at)
-            return d >= weekStart && d < yesterdayStart
-        })
-
-        const lastMonthChatSessions = sessions.filter((s) => {
-            const d = sod(s.last_updated_at)
-            return d >= monthStart && d < weekStart
-        })
-
-        const groupedOlderChatSessions: Record<string, Session[]> = {}
-        sessions.forEach((s) => {
-            const d = sod(s.last_updated_at)
-            if (d < monthStart) {
-                const label = d.toLocaleString("id-ID", { month: "long", year: "numeric" })
-                ;(groupedOlderChatSessions[label] ??= []).push(s)
-            }
-        })
-
-        const sortByDate = (a: Session, b: Session) =>
-            dOf(b.last_updated_at).getTime() - dOf(a.last_updated_at).getTime()
-
-        ;[todayChatSessions, yesterdayChatSessions, lastWeekChatSessions, lastMonthChatSessions]
-            .forEach((arr) => arr.sort(sortByDate))
-        Object.values(groupedOlderChatSessions).forEach((arr) => arr.sort(sortByDate))
-
-        return {
-            "Today": todayChatSessions,
-            "Yesterday": yesterdayChatSessions,
-            "Previous 7 Days": lastWeekChatSessions,
-            "Previous 30 Days": lastMonthChatSessions,
-            ...groupedOlderChatSessions,
-        }
-    }, [sessions])
-
-    // Search filter
-    const filteredGroups = useMemo(() => {
-        if (!searchQuery.trim()) return groups
-
-        const query = searchQuery.toLowerCase()
-        const filtered: { [key: string]: Session[] } = {}
-
-        Object.entries(groups).forEach(([label, sessions]) => {
-            const matches = sessions.filter((s) =>
-                s.title.toLowerCase().includes(query)
-            )
-            if (matches.length > 0) filtered[label] = matches
-        })
-
-        return filtered
-    }, [searchQuery, groups])
 
     // Render
     return (
@@ -211,15 +64,10 @@ export function AppSidebar() {
                             <span className="text-sm font-medium">New Chat</span>
                         </PrimaryButton>
 
-                        <div className="relative">
-                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-                            <Input
-                                placeholder="Search conversations..."
-                                className="pl-9 py-2 h-9 text-sm border-gray-200 focus-visible:ring-[#192f59] focus-visible:ring-offset-0"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
-                        </div>
+                        <SessionSearch
+                            searchQuery={searchQuery}
+                            onSearchChange={setSearchQuery}
+                        />
                     </div>
                     <SidebarSeparator className="mt-3" />
                 </SidebarHeader>
