@@ -9,7 +9,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import ChatBubble from "@/components/chat/bubble";
 import { randomQuestions } from "@/utils/getRecommendation";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
+import { useThinkingTimer } from "@/hooks/useThinkingTimer";
+import { useRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
+import { useChat } from "@/hooks/useChat";
 
 export interface Chat {
     id: string;
@@ -23,6 +26,8 @@ export interface Chat {
     is_disliked?: boolean;
     documents?: string;
     state: "done" | "loading" | "error" | "generating" | "searching" | "extracting";
+    thinking_start_time?: string;
+    thinking_duration?: number;
 }
 
 const fetchChats = async (sessionId: string): Promise<Chat[]> => {
@@ -45,11 +50,10 @@ export default function Session() {
     const { user, loading } = useAuth()
     const [prompt, setPrompt] = React.useState("")
     const scrollAreaRef = useRef<HTMLDivElement>(null)
-    const queryClient = useQueryClient()
 
     // Query for chat messages
-    const { 
-        data: chats = [], 
+    const {
+        data: chats = [],
         isLoading: isPageLoading,
         refetch
     } = useQuery({
@@ -62,60 +66,12 @@ export default function Session() {
     })
 
     const [isLoading, setIsLoading] = React.useState(false)
+    const { thinkingStartTimes, finalThinkingDurations } = useThinkingTimer(chats)
+    const { newSessionChat, continueChat } = useChat(user)
 
-    const newSessionChat = async (question: string) => {
-        if (!user || !question || question.trim() === "") return
-        const { data: sessions, error: sessionCreateError } = await supabase.from("session").insert({
-            user_uid: user.id,
-            title: "Untitled Chat",
-        }).select()
-        if (sessionCreateError) {
-            console.error("Error creating session:", sessionCreateError)
-            return
-        }
-        const sessionId = sessions[0].id
-        const { data: chats, error: chatInsertError } = await supabase.from("chat").insert({
-            role: "user",
-            content: question,
-            session_uid: sessionId,
-            user_uid: user.id,
-            state: "done"
-        }).select()
-        if (chatInsertError) {
-            console.error("Error inserting chat:", chatInsertError)
-            return
-        }
-        const { data: authSessions } = await supabase.auth.getSession()
-        if (!authSessions.session) {
-            console.error("No session found")
-            return
-        }
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/chat`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                session_uid: sessionId,
-                user_uid: user.id,
-                access_token: authSessions.session?.access_token,
-                refresh_token: authSessions.session?.refresh_token,
-                messages: chats.map((chat) => ({
-                    content: chat.context ? `
-                    <context>
-                    ${chat.context}
-                    </context>\n\n
-                    ` : "" + chat.content,
-                    role: chat.role,
-                    timestamp: chat.created_at
-                }))
-            })
-        })
-        const json = await res.json()
-        console.log("Response:", json)
-        setPrompt("")
-        navigate(`/chat/${sessionId}`)
-    }
+    // Setup realtime subscription
+    useRealtimeSubscription(sessionId, user?.id, refetch)
+
 
     const scrollToBottom = () => {
         if (scrollAreaRef.current) {
@@ -129,6 +85,7 @@ export default function Session() {
     useEffect(() => {
         setIsLoading(chats.some((chat) => chat.state === "loading"))
     }, [chats])
+
 
     useEffect(() => {
         if (!loading && !user) {
@@ -157,59 +114,6 @@ export default function Session() {
         }];
     }, [sessionId, user?.id]);
 
-    useEffect(() => {
-        if (!sessionId || !user) return;
-
-        const channel = supabase.channel(`chat::${user.id}::${sessionId}`)
-            .on("postgres_changes", { 
-                event: "INSERT", 
-                schema: "public", 
-                table: "chat", 
-                filter: `session_uid=eq.${sessionId}` 
-            }, (payload) => {
-                console.log("New chat:", payload);
-                queryClient.setQueryData(['chats', sessionId], (oldData: Chat[] = []) => 
-                    [...oldData, payload.new as Chat]
-                );
-            })
-            .on("postgres_changes", { 
-                event: "UPDATE", 
-                schema: "public", 
-                table: "chat", 
-                filter: `session_uid=eq.${sessionId}` 
-            }, (payload) => {
-                console.log("Updated chat:", payload);
-                queryClient.setQueryData(['chats', sessionId], (oldData: Chat[] = []) => 
-                    oldData.map((chat) => chat.id === payload.new.id ? {
-                        ...chat,
-                        ...payload.new
-                    } as Chat : chat)
-                );
-            })
-            .on("postgres_changes", { 
-                event: "DELETE", 
-                schema: "public", 
-                table: "chat", 
-                filter: `session_uid=eq.${sessionId}` 
-            }, (payload) => {
-                console.log("Deleted chat:", payload);
-                queryClient.setQueryData(['chats', sessionId], (oldData: Chat[] = []) => 
-                    oldData.filter((chat) => chat.id !== payload.old.id)
-                );
-            })
-            .subscribe(async (status) => {
-                console.log("Subscription status:", status);
-                // Defensive refetch on successful subscription to cover missed events
-                if (status === 'SUBSCRIBED') {
-                    await refetch();
-                }
-            });
-
-        return () => {
-            console.log("Unsubscribing from chat channel");
-            channel.unsubscribe();
-        };
-    }, [user, sessionId, queryClient, refetch]);
 
     const memoizedChatList = useMemo(() => {
         const chatData = sessionId ? chats : welcomeChats;
@@ -231,9 +135,11 @@ export default function Session() {
                     history={chatData}
                     sessionId={sessionId || ""}
                     messageId={chat.id}
+                    thinkingStartTime={thinkingStartTimes[chat.id]}
+                    finalThinkingDuration={('thinking_duration' in chat ? chat.thinking_duration : null) || finalThinkingDurations[chat.id]}
                 />
             ));
-    }, [chats, welcomeChats, sessionId]);
+    }, [chats, welcomeChats, sessionId, thinkingStartTimes, finalThinkingDurations]);
 
     return (
         <div className='h-full w-full bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col'>
@@ -262,46 +168,13 @@ export default function Session() {
                     onSubmit={async (e) => {
                         e.preventDefault()
                         if (!user) return
-                        if (!sessionId) return await newSessionChat(prompt);
-                        const { error } = await supabase.from("chat").insert({
-                            role: "user",
-                            content: prompt,
-                            session_uid: sessionId,
-                            user_uid: user.id,
-                            state: "done"
-                        })
-                        if (error) {
-                            console.error("Error inserting chat:", error)
-                            return
+
+                        if (!sessionId) {
+                            await newSessionChat(prompt);
+                        } else {
+                            await continueChat(prompt, sessionId, chats);
                         }
-                        const { data } = await supabase.auth.getSession()
-                        if (!data.session) {
-                            console.error("No session found")
-                            return
-                        }
-                        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/chat`, {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json"
-                            },
-                            body: JSON.stringify({
-                                session_uid: sessionId,
-                                user_uid: user.id,
-                                access_token: data.session?.access_token,
-                                refresh_token: data.session?.refresh_token,
-                                messages: [...chats.map((chat) => ({
-                                    content: chat.content,
-                                    role: chat.role,
-                                    timestamp: chat.created_at
-                                })), {
-                                    content: prompt,
-                                    role: "user",
-                                    timestamp: new Date().toISOString()
-                                }]
-                            })
-                        })
-                        const json = await res.json()
-                        console.log("Response:", json)
+
                         setPrompt("")
                     }}
                 >

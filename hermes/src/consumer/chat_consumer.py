@@ -23,12 +23,23 @@ class ChatConsumer:
         channel = await conn.channel()
         queue = await channel.declare_queue("chat")
         await queue.consume(ChatConsumer.process_message, no_ack=False)
-        return conn
+        print("DEBUG: RabbitMQ consumer started and waiting for messages...")
+
+        # Keep the consumer running indefinitely
+        try:
+            import asyncio
+            await asyncio.Future()  # Run forever
+        except asyncio.CancelledError:
+            print("DEBUG: RabbitMQ consumer shutting down...")
+            await conn.close()
+            raise
 
     @staticmethod
     async def process_message(message):
+        print("DEBUG: process_message called!!!")
         await message.ack()
         body = json.loads(message.body.decode("utf-8"))
+        print(f"DEBUG: Message body: {body}")
         message_ref = None
         try:
             history = MessageHandler.serialize_message(body["messages"])
@@ -41,10 +52,12 @@ class ChatConsumer:
             if is_new:
                 SessionManager.handle_new_chat(history, body["session_uid"])
 
+            print(f"DEBUG: About to call init_message for session: {body['session_uid']}")
             message_ref = SessionManager.init_message(
                 body["session_uid"], body["user_uid"]
             )
             message_id = message_ref.data[0]["id"]
+            print(f"DEBUG: Got message_id: {message_id}")
             
             eval_res = MessageHandler.evaluate_question(history)
             
@@ -56,6 +69,9 @@ class ChatConsumer:
                 serialized_answer_res = MessageHandler.generate_planned_answers(history, documents, eval_res)
 
             MessageHandler.generate_final_response(history, documents, serialized_answer_res, message_id)
+
+            # Store thinking duration after processing is complete
+            SessionManager.finalize_message_with_thinking_duration(message_id)
 
         except Exception as e:
             return ErrorHandler.handle_error(e, message_ref)

@@ -1,10 +1,9 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from ..producer.chat_producer import ChatProducer, History
-from typing import Annotated
-
 
 router = APIRouter()
 
 @router.post("/chat")
-async def chat_producer(message: History, status: Annotated[dict, Depends(ChatProducer.publish)]):
+async def chat_producer(message: History):
+    status = await ChatProducer.publish(message)
     return status
