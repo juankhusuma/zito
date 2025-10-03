@@ -21,7 +21,9 @@ RUN pnpm install
 
 # Copy the project files into the working directory
 COPY ./ ./
-# Environment variables will be loaded from .env file copied by COPY ./ ./
+
+# Use .env.production for production builds, fallback to .env if it doesn't exist
+RUN if [ -f .env.production ]; then cp .env.production .env; fi
 
 # Build the React app for production
 RUN pnpm build
