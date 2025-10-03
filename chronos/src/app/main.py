@@ -12,6 +12,13 @@ router = APIRouter()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Configure root logger
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+        handlers=[logging.StreamHandler()]
+    )
+
     loop = get_running_loop()
     task = loop.create_task(ChatProducer.connect(loop))
     logger = logging.getLogger("uvicorn.access")
