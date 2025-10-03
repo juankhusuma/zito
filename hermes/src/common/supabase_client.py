@@ -10,5 +10,9 @@ client = create_client(
     supabase_url=os.getenv("SUPABASE_URL"),
 )
 
-# Patch auth client to respect no_proxy environment variable
-client.auth._http_client = httpx.Client(trust_env=True)
+# Configure httpx client to use proxy explicitly
+proxy_url = os.getenv("HTTPS_PROXY") or os.getenv("https_proxy")
+if proxy_url:
+    client.auth._http_client = httpx.Client(proxy=proxy_url)
+else:
+    client.auth._http_client = httpx.Client(trust_env=True)
