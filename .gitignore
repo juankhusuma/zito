@@ -3,6 +3,9 @@ venv
 __pycache__
 *.pyc
 *.env
-.env*
+.env
+.env.local
+.env.*.local
+!.env.production
 reports/
 .DS_Store
