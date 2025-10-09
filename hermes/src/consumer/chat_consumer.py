@@ -24,7 +24,7 @@ class ChatConsumer:
             password=os.getenv("RABBITMQ_PASS"),
         )
         channel = await conn.channel()
-        await channel.set_qos(prefetch_count=1)  # Process 1 message at a time
+        await channel.set_qos(prefetch_count=3)  # Allow parallel processing of up to 3 messages
         queue = await channel.declare_queue("chat")
         await queue.consume(ChatConsumer.process_message, no_ack=False)
         print("DEBUG: RabbitMQ consumer started and waiting for messages...", flush=True)
