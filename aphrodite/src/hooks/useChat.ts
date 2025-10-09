@@ -44,6 +44,12 @@ export function useChat(user: any) {
             return;
         }
 
+        // Navigate first to setup subscription, then send message
+        navigate(`/chat/${sessionId}`);
+
+        // Wait a bit for subscription to establish
+        await new Promise(resolve => setTimeout(resolve, 100));
+
         const res = await fetch(`${import.meta.env.VITE_API_URL}/api/v1/chat`, {
             method: "POST",
             headers: {
@@ -68,7 +74,6 @@ export function useChat(user: any) {
 
         const json = await res.json();
         console.log("Response:", json);
-        navigate(`/chat/${sessionId}`);
     }, [user, navigate]);
 
     const continueChat = useCallback(async (
