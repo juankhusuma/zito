@@ -83,7 +83,13 @@ export default function Session() {
     }
 
     useEffect(() => {
-        setIsLoading(chats.some((chat) => chat.state === "loading"))
+        const hasLoading = chats.some((chat) => chat.state === "loading")
+        console.log("DEBUG: chats state check:", {
+            totalChats: chats.length,
+            hasLoading,
+            loadingStates: chats.map(c => ({ id: c.id, state: c.state, role: c.role }))
+        })
+        setIsLoading(hasLoading)
     }, [chats])
 
 
