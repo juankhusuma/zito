@@ -18,9 +18,14 @@ export function useThinkingTimer(chats: Chat[]) {
                 setThinkingStartTimes(prev => {
                     // Only set if not already tracking this chat
                     if (!prev[chat.id]) {
+                        // Use thinking_start_time from database if available, otherwise use current time
+                        const startTime = chat.thinking_start_time
+                            ? new Date(chat.thinking_start_time)
+                            : new Date();
+
                         return {
                             ...prev,
-                            [chat.id]: new Date()
+                            [chat.id]: startTime
                         };
                     }
                     return prev;
