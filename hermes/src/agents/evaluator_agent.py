@@ -6,7 +6,7 @@ from ..model.search import Questions, History
 
 def evaluate_question(history: History):
     check_res = gemini_client.models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-1.5-flash",
         contents=history,
         config=types.GenerateContentConfig(
             system_instruction=EVALUATOR_AGENT_PROMPT_INIT,
