@@ -18,7 +18,6 @@ def evaluate_question(history: History):
                 response_mime_type="application/json",
                 response_schema=Questions,
                 temperature=0.2,
-                timeout=30  # Add 30 second timeout
             ),
         )
         
@@ -29,5 +28,8 @@ def evaluate_question(history: History):
     except Exception as e:
         end_time = time.time()
         print(f"DEBUG: evaluate_question error after {end_time - start_time:.2f} seconds: {e}")
-        # Return default response instead of crashing
-        return Questions(questions=["Apa yang ingin Anda ketahui?"])
+        return Questions(
+            questions=["Apa yang ingin Anda ketahui?"],
+            is_sufficient=True,
+            classification="general"
+        )
