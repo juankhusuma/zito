@@ -15,6 +15,9 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 class ChatConsumer:
+    # Store channel as class variable for retry logic
+    _channel = None
+
     @staticmethod
     async def consume(loop):
         conn = await aio_pika.connect_robust(
@@ -23,9 +26,9 @@ class ChatConsumer:
             login=os.getenv("RABBITMQ_USER"),
             password=os.getenv("RABBITMQ_PASS"),
         )
-        channel = await conn.channel()
-        await channel.set_qos(prefetch_count=3)  # Allow parallel processing of up to 3 messages
-        queue = await channel.declare_queue("chat")
+        ChatConsumer._channel = await conn.channel()
+        await ChatConsumer._channel.set_qos(prefetch_count=3)  # Allow parallel processing of up to 3 messages
+        queue = await ChatConsumer._channel.declare_queue("chat")
         await queue.consume(ChatConsumer.process_message, no_ack=False)
         print("DEBUG: RabbitMQ consumer started and waiting for messages...", flush=True)
         import sys
@@ -131,28 +134,25 @@ class ChatConsumer:
                         logger.error(f"Failed to update failed message in DB: {db_error}")
             else:
                 logger.warning(f"Retry {retry_count + 1}/{MAX_RETRIES} for session {body.get('session_uid')}")
-                
+
                 # Republish with incremented retry count
                 try:
-                    # Get channel from message to republish
-                    channel = message.channel
-                    
                     # Update retry count in body
                     body['__retry_count'] = retry_count + 1
-                    
-                    # Publish new message with retry count
-                    await channel.default_exchange.publish(
+
+                    # Publish new message with retry count using stored channel
+                    await ChatConsumer._channel.default_exchange.publish(
                         aio_pika.Message(
                             body=json.dumps(body).encode('utf-8'),
                             delivery_mode=aio_pika.DeliveryMode.PERSISTENT
                         ),
                         routing_key='chat'
                     )
-                    
+
                     # Acknowledge original message
                     await message.ack()
                     logger.info(f"Message republished with retry count {retry_count + 1}")
-                    
+
                 except Exception as republish_error:
                     logger.error(f"Failed to republish message: {republish_error}")
                     # Fallback: simple requeue
