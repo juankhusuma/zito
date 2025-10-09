@@ -28,6 +28,8 @@ export function useRealtimeSubscription(
                 filter: `session_uid=eq.${sessionId}`
             }, (payload) => {
                 console.log("New chat:", payload);
+                console.log("Chat state:", payload.new.state);
+                console.log("Chat role:", payload.new.role);
                 queryClient.setQueryData(['chats', sessionId], (oldData: Chat[] = []) =>
                     [...oldData, payload.new as Chat]
                 );
