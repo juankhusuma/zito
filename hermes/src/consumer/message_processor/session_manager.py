@@ -7,32 +7,36 @@ from .agent_caller import AgentCaller
 class SessionManager:
     @staticmethod
     def init_message(session_uid: str, user_uid: str, thinking_start_time: str = None):
-        supabase.table("session").update({
-            "last_updated_at": datetime.now().isoformat(),
-        }).eq("id", session_uid).execute()
+        try:
+            supabase.table("session").update({
+                "last_updated_at": datetime.now().isoformat(),
+            }).eq("id", session_uid).execute()
 
-        # Record thinking start time when backend processing begins
-        backend_thinking_start = datetime.now(timezone.utc).isoformat()
-        print(f"DEBUG: Setting thinking_start_time to: {backend_thinking_start}")
+            # Record thinking start time when backend processing begins
+            backend_thinking_start = datetime.now(timezone.utc).isoformat()
+            print(f"DEBUG: Setting thinking_start_time to: {backend_thinking_start}")
 
-        chat_data = {
-            "role": "assistant",
-            "content": "",
-            "session_uid": session_uid,
-            "user_uid": user_uid,
-            "state": "loading",
-            "thinking_start_time": backend_thinking_start,
-        }
+            chat_data = {
+                "role": "assistant",
+                "content": "",
+                "session_uid": session_uid,
+                "user_uid": user_uid,
+                "state": "loading",
+                "thinking_start_time": backend_thinking_start,
+            }
 
-        print(f"DEBUG: Chat data to insert: {chat_data}")
+            print(f"DEBUG: Chat data to insert: {chat_data}")
 
-        message_ref = (
-            supabase.table("chat")
-            .insert(chat_data)
-            .execute()
-        )
-        print(f"DEBUG: Insert result: {message_ref}")
-        return message_ref
+            message_ref = (
+                supabase.table("chat")
+                .insert(chat_data)
+                .execute()
+            )
+            print(f"DEBUG: Insert result: {message_ref}")
+            return message_ref
+        except Exception as e:
+            print(f"ERROR: Failed to insert assistant message: {e}")
+            raise
 
     @staticmethod
     def handle_new_chat(history: History, session_uid: str):
