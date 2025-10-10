@@ -11,6 +11,12 @@ router = APIRouter()
 @router.post("/chat")
 async def chat_producer(message: History):
     try:
+        # Set session with user's tokens to bypass RLS
+        supabase.auth.set_session(
+            access_token=message.access_token,
+            refresh_token=message.refresh_token,
+        )
+
         # Update session last_updated_at
         supabase.table("session").update({
             "last_updated_at": datetime.now().isoformat(),
