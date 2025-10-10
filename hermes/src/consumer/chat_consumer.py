@@ -68,12 +68,19 @@ class ChatConsumer:
                 if is_new:
                     SessionManager.handle_new_chat(history, body["session_uid"])
 
-                print(f"DEBUG: About to call init_message for session: {body['session_uid']}")
-                message_ref = SessionManager.init_message(
-                    body["session_uid"], body["user_uid"]
-                )
-                message_id = message_ref.data[0]["id"]
-                print(f"DEBUG: Got message_id: {message_id}")
+                # Use message_id from Chronos if available, otherwise create new message
+                message_id = body.get("message_id")
+                if message_id:
+                    print(f"DEBUG: Using existing message_id from Chronos: {message_id}")
+                    message_ref = {"data": [{"id": message_id}]}  # Mock structure for compatibility
+                else:
+                    # Fallback: create message if not provided (backward compatibility)
+                    print(f"DEBUG: No message_id provided, creating new message for session: {body['session_uid']}")
+                    message_ref = SessionManager.init_message(
+                        body["session_uid"], body["user_uid"]
+                    )
+                    message_id = message_ref.data[0]["id"]
+                    print(f"DEBUG: Created new message_id: {message_id}")
 
                 print(f"DEBUG: Calling evaluate_question...")
                 eval_res = MessageHandler.evaluate_question(history)

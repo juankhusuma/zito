@@ -41,7 +41,7 @@ class ChatProducer:
         return conn
     
     @classmethod
-    async def publish(klass, message: History):
+    async def publish(klass, message: History, message_id: str = None):
         logger.info(f"DEBUG: publish() called, conn={klass.conn}, is_closed={klass.conn.is_closed if klass.conn else 'N/A'}")
 
         if klass.conn is None or klass.conn.is_closed:
@@ -56,10 +56,16 @@ class ChatProducer:
                 return {"status": "Error", "message": f"Failed to reconnect: {str(e)}"}
 
         try:
+            # Prepare message body with message_id if provided
+            body = message.model_dump()
+            if message_id:
+                body["message_id"] = message_id
+                logger.info(f"DEBUG: Including message_id in payload: {message_id}")
+
             logger.info(f"DEBUG: Publishing to queue {klass.publish_queue.name}")
             await klass.channel.default_exchange.publish(
                 aio_pika.Message(
-                    body=json.dumps(message.model_dump()).encode(),
+                    body=json.dumps(body).encode(),
                     correlation_id=str(uuid.uuid4()),
                 ),
                 routing_key=klass.publish_queue.name,
