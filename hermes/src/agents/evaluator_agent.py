@@ -11,7 +11,7 @@ def evaluate_question(history: History):
     
     try:
         check_res = gemini_client.models.generate_content(
-            model="gemini-1.5-flash",
+            model="gemini-1.5-flash-002",
             contents=history,
             config=types.GenerateContentConfig(
                 system_instruction=EVALUATOR_AGENT_PROMPT_INIT,
