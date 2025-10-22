@@ -23,7 +23,7 @@ def generate_and_execute_es_query(questions: list[str]):
     while True and max_attempt > 0:
         max_attempt -= 1
         es_query_res = gemini_client.models.generate_content(
-            model="gemini-2.5-pro",
+            model="gemini-2.5-flash",
             contents=[{
                 "role": "user",
                 "parts": [
