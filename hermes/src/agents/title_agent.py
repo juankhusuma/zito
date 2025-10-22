@@ -5,7 +5,7 @@ from ..model.search import History
 
 def generate_title(history: History):
     title_res = gemini_client.models.generate_content(
-        model="gemini-1.5-flash-002",
+        model="gemini-2.5-flash",
         contents=history,
         config=types.GenerateContentConfig(
             system_instruction=GENERATE_TITLE_AGENT_PROMPT,
