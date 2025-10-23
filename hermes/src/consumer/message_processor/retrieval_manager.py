@@ -22,7 +22,10 @@ class RetrievalManager:
             uu_retrieval = UndangUndangRetrievalStrategy()
             kuhper_retrieval = KuhperRetrievalStrategy()
             kuhp_retrieval = KuhpRetrievalStrategy()
-            all_retrievals = LegalDocumentRetrievalStrategy()
+
+            # TEMPORARILY DISABLED: LegalDocumentRetrievalStrategy searches 'peraturan_indonesia' index which doesn't exist
+            # TODO: Either create peraturan_indonesia index or merge with undang-undang
+            # all_retrievals = LegalDocumentRetrievalStrategy()
 
             uu_documents = AgentCaller.retry_with_exponential_backoff(
                 lambda: AgentCaller.safe_agent_call(
@@ -48,15 +51,17 @@ class RetrievalManager:
                 base_delay=3,
             )
 
-            all_documents = AgentCaller.retry_with_exponential_backoff(
-                lambda: AgentCaller.safe_agent_call(
-                    all_retrievals.search, eval_res.questions
-                ),
-                max_attempts=2,
-                base_delay=3,
-            )
-            
-            all_documents = uu_documents + kuhper_documents + kuhp_documents + all_documents
+            # TEMPORARILY DISABLED: LegalDocumentRetrievalStrategy (searches non-existent peraturan_indonesia index)
+            # all_documents = AgentCaller.retry_with_exponential_backoff(
+            #     lambda: AgentCaller.safe_agent_call(
+            #         all_retrievals.search, eval_res.questions
+            #     ),
+            #     max_attempts=2,
+            #     base_delay=3,
+            # )
+
+            # Combine results from existing indices only
+            all_documents = uu_documents + kuhper_documents + kuhp_documents
             return all_documents if all_documents else []
         except Exception as e:
             print(f"Search failed: {e}")

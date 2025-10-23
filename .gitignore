@@ -9,3 +9,4 @@ __pycache__
 !.env.production
 reports/
 .DS_Store
+lexin-data-pipeline/
