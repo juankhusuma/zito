@@ -14,13 +14,10 @@ else:
     print("INFO: Using direct connection for Supabase (trust_env)")
     http_client = httpx.Client(trust_env=True, timeout=30.0)
 
+# Create client without options parameter (simpler approach)
 client = create_client(
     supabase_key=os.getenv("SUPABASE_ANON_KEY"),
     supabase_url=os.getenv("SUPABASE_URL"),
-    options={
-        "postgrest_client_timeout": 30,
-        "storage_client_timeout": 30,
-    }
 )
 
 # Override the httpx client for PostgREST (table operations) and Auth
