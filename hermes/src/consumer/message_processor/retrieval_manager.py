@@ -11,7 +11,14 @@ from ...retrieval.undang_undang_retrieval import UndangUndangRetrievalStrategy
 class RetrievalManager:
     @staticmethod
     def set_search_state(message_id: str):
-        supabase.table("chat").update({"state": "searching"}).eq("id", message_id).execute()
+        try:
+            print(f"DEBUG: Updating search state for message_id: {message_id}")
+            supabase.table("chat").update({"state": "searching"}).eq("id", message_id).execute()
+            print(f"DEBUG: Search state updated successfully")
+        except Exception as e:
+            # Don't let state update failure block the entire retrieval process
+            print(f"WARNING: Failed to update search state for {message_id}: {e}")
+            print("WARNING: Continuing with retrieval anyway...")
 
     @staticmethod
     def perform_retrieval(eval_res: Questions, message_id: str) -> list[dict]:
