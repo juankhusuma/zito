@@ -30,20 +30,25 @@ def generate_and_execute_es_query_kuhp(questions: list[str]):
         }
             
         documents, error = evaluate_es_query(query_json)
-        dense_documents = [
-            search_dense_kuhp_documents(
-                query=question, top_k=5
-            ) for question in questions
-        ]
-        result = []
-        for doc in dense_documents:
-            result.extend(doc.get("matches", []))
 
-        dense_documents = result
-        for doc in dense_documents:
-            del doc["values"]
-            doc["metadata"]["_type"] = "kuhp"
-            
+        # TEMPORARILY DISABLED: Pinecone dense search (blocked by firewall)
+        # TODO: Re-enable when Pinecone is accessible or migrate to local vector DB
+        # dense_documents = [
+        #     search_dense_kuhp_documents(
+        #         query=question, top_k=5
+        #     ) for question in questions
+        # ]
+        # result = []
+        # for doc in dense_documents:
+        #     result.extend(doc.get("matches", []))
+        # dense_documents = result
+        # for doc in dense_documents:
+        #     del doc["values"]
+        #     doc["metadata"]["_type"] = "kuhp"
+
+        # Use empty dense_documents (ES only mode)
+        dense_documents = []
+
         if len(documents) == 0:
             continue
         if error is None:
