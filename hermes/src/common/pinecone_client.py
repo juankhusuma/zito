@@ -3,8 +3,12 @@ from dotenv import load_dotenv
 import os
 load_dotenv()
 
-# Use proxy only in production environment
-proxy_url = os.getenv("PINECONE_PROXY_URL") if os.getenv("PINECONE_PROXY_URL") else None
+# Use proxy for external API access
+# Try PINECONE_PROXY_URL first, fallback to HTTPS_PROXY (same as Supabase pattern)
+proxy_url = os.getenv("PINECONE_PROXY_URL") or os.getenv("HTTPS_PROXY")
+
+if proxy_url:
+    print(f"INFO: Using proxy for Pinecone: {proxy_url}")
 
 # Initialize Pinecone clients
 _pc = None
