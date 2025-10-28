@@ -44,12 +44,8 @@ COPY --from=builder /app/wheels /wheels
 RUN pip install --no-cache-dir --no-index --find-links=/wheels/ /wheels/* && \
     rm -rf /wheels
 
-ENV NO_PROXY="127.0.0.0/8,host.docker.internal,elasticsearch,.pinecone.io"
-ENV no_proxy="127.0.0.0/8,host.docker.internal,elasticsearch,.pinecone.io"
-ENV HTTP_PROXY="http://proxy.cs.ui.ac.id:8080"
-ENV http_proxy="http://proxy.cs.ui.ac.id:8080"
-ENV HTTPS_PROXY="http://proxy.cs.ui.ac.id:8080"
-ENV https_proxy="http://proxy.cs.ui.ac.id:8080"
+# Proxy settings removed - now managed via .env file to avoid hardcoding
+# This allows flexible proxy configuration per environment without rebuilding image
 
 # Copy application code
 COPY . .
