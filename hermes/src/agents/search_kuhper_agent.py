@@ -28,23 +28,26 @@ def generate_and_execute_es_query_kuhper(questions: list[str]):
         }
         documents, error = evaluate_es_query(query_json)
 
-        # TEMPORARILY DISABLED: Pinecone dense search (blocked by firewall)
-        # TODO: Re-enable when Pinecone is accessible or migrate to local vector DB
-        # dense_documents = [
-        #     search_dense_kuhper_documents(
-        #         query=question, top_k=5
-        #     ) for question in questions
-        # ]
-        # result = []
-        # for doc in dense_documents:
-        #     result.extend(doc.get("matches", []))
-        # dense_documents = result
-        # for doc in dense_documents:
-        #     del doc["values"]
-        #     doc["metadata"]["_type"] = "kuhper"
-
-        # Use empty dense_documents (ES only mode)
-        dense_documents = []
+        # Pinecone dense search - now enabled with proxy support
+        try:
+            print(f"DEBUG: Calling Pinecone dense search for {len(questions)} questions...")
+            dense_documents = [
+                search_dense_kuhper_documents(
+                    query=question, top_k=5
+                ) for question in questions
+            ]
+            result = []
+            for doc in dense_documents:
+                result.extend(doc.get("matches", []))
+            dense_documents = result
+            for doc in dense_documents:
+                del doc["values"]
+                doc["metadata"]["_type"] = "kuhper"
+            print(f"DEBUG: Pinecone dense search returned {len(dense_documents)} documents")
+        except Exception as e:
+            print(f"WARNING: Pinecone dense search failed: {e}")
+            print(f"WARNING: Falling back to ES-only mode")
+            dense_documents = []
 
         if len(documents) == 0:
             continue
