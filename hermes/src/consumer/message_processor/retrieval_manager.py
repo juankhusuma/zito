@@ -41,34 +41,39 @@ class RetrievalManager:
             # Parallelize all three index searches for 2x speed improvement
             print("DEBUG: Calling ALL retrievals in PARALLEL...")
 
-            with ThreadPoolExecutor(max_workers=3) as executor:
-                # Submit all three retrieval tasks concurrently
-                uu_future = executor.submit(
-                    AgentCaller.retry_with_exponential_backoff,
+            # Define wrapper functions to avoid lambda closure issues
+            def call_uu_retrieval():
+                return AgentCaller.retry_with_exponential_backoff(
                     lambda: AgentCaller.safe_agent_call(
                         uu_retrieval.search, eval_res.questions
                     ),
-                    2,  # max_attempts
-                    3   # base_delay
+                    max_attempts=2,
+                    base_delay=3,
                 )
 
-                kuhper_future = executor.submit(
-                    AgentCaller.retry_with_exponential_backoff,
+            def call_kuhper_retrieval():
+                return AgentCaller.retry_with_exponential_backoff(
                     lambda: AgentCaller.safe_agent_call(
                         kuhper_retrieval.search, eval_res.questions
                     ),
-                    2,  # max_attempts
-                    3   # base_delay
+                    max_attempts=2,
+                    base_delay=3,
                 )
 
-                kuhp_future = executor.submit(
-                    AgentCaller.retry_with_exponential_backoff,
+            def call_kuhp_retrieval():
+                return AgentCaller.retry_with_exponential_backoff(
                     lambda: AgentCaller.safe_agent_call(
                         kuhp_retrieval.search, eval_res.questions
                     ),
-                    2,  # max_attempts
-                    3   # base_delay
+                    max_attempts=2,
+                    base_delay=3,
                 )
+
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                # Submit all three retrieval tasks concurrently
+                uu_future = executor.submit(call_uu_retrieval)
+                kuhper_future = executor.submit(call_kuhper_retrieval)
+                kuhp_future = executor.submit(call_kuhp_retrieval)
 
                 # Wait for all results
                 uu_documents = uu_future.result()
