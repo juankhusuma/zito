@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from src.common.supabase_client import client as supabase
 from ...model.search import Questions
 from ...retrieval.retrieval_context import RetrievalContext
@@ -37,34 +38,45 @@ class RetrievalManager:
             # TODO: Either create peraturan_indonesia index or merge with undang-undang
             # all_retrievals = LegalDocumentRetrievalStrategy()
 
-            print("DEBUG: Calling UU retrieval...")
-            uu_documents = AgentCaller.retry_with_exponential_backoff(
-                lambda: AgentCaller.safe_agent_call(
-                    uu_retrieval.search, eval_res.questions
-                ),
-                max_attempts=2,
-                base_delay=3,
-            )
+            # Parallelize all three index searches for 2x speed improvement
+            print("DEBUG: Calling ALL retrievals in PARALLEL...")
+
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                # Submit all three retrieval tasks concurrently
+                uu_future = executor.submit(
+                    AgentCaller.retry_with_exponential_backoff,
+                    lambda: AgentCaller.safe_agent_call(
+                        uu_retrieval.search, eval_res.questions
+                    ),
+                    2,  # max_attempts
+                    3   # base_delay
+                )
+
+                kuhper_future = executor.submit(
+                    AgentCaller.retry_with_exponential_backoff,
+                    lambda: AgentCaller.safe_agent_call(
+                        kuhper_retrieval.search, eval_res.questions
+                    ),
+                    2,  # max_attempts
+                    3   # base_delay
+                )
+
+                kuhp_future = executor.submit(
+                    AgentCaller.retry_with_exponential_backoff,
+                    lambda: AgentCaller.safe_agent_call(
+                        kuhp_retrieval.search, eval_res.questions
+                    ),
+                    2,  # max_attempts
+                    3   # base_delay
+                )
+
+                # Wait for all results
+                uu_documents = uu_future.result()
+                kuhper_documents = kuhper_future.result()
+                kuhp_documents = kuhp_future.result()
+
             print(f"DEBUG: UU retrieval done, got {len(uu_documents)} documents")
-
-            print("DEBUG: Calling KUHPER retrieval...")
-            kuhper_documents = AgentCaller.retry_with_exponential_backoff(
-                lambda: AgentCaller.safe_agent_call(
-                    kuhper_retrieval.search, eval_res.questions
-                ),
-                max_attempts=2,
-                base_delay=3,
-            )
             print(f"DEBUG: KUHPER retrieval done, got {len(kuhper_documents)} documents")
-
-            print("DEBUG: Calling KUHP retrieval...")
-            kuhp_documents = AgentCaller.retry_with_exponential_backoff(
-                lambda: AgentCaller.safe_agent_call(
-                    kuhp_retrieval.search, eval_res.questions
-                ),
-                max_attempts=2,
-                base_delay=3,
-            )
             print(f"DEBUG: KUHP retrieval done, got {len(kuhp_documents)} documents")
 
             # TEMPORARILY DISABLED: LegalDocumentRetrievalStrategy (searches non-existent peraturan_indonesia index)

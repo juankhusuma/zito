@@ -15,7 +15,6 @@ def evaluate_es_query(query: dict):
         return (None, str(e))
 
 def generate_and_execute_es_query_undang_undang(questions: list[str]):
-    # Removed unnecessary sleep for better performance
     max_attempt = 3
     while True and max_attempt > 0:
         max_attempt -= 1
