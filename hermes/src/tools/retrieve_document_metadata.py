@@ -19,12 +19,12 @@ def get_document_metadata(id: str):
 
     hit = docs.get("hits")[0]
 
-    # Normalize field names for frontend compatibility
-    # Frontend expects "source" (not "_source") and "id" (not "_id")
+    # Note: search_legal_documents() already returns normalized structure
+    # with "id" and "source" fields (not "_id" and "_source")
     return {
-        "_id": hit.get("_id"),
-        "id": hit.get("_id"),  # Add for compatibility
-        "source": hit.get("_source"),  # Rename _source to source
+        "_id": hit.get("id"),  # Use "id" from normalized hit
+        "id": hit.get("id"),
+        "source": hit.get("source"),
         "pasal": None  # Ensure it's document metadata, not pasal-specific
     }
 
