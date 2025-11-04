@@ -1,6 +1,6 @@
 from .search_legal_document import search_legal_documents
 
-def get_document_metadata(id: str): 
+def get_document_metadata(id: str):
     normalized_id = id.replace("Nomor_", "").replace("Tahun_", "").replace(".pdf", "")
     normalized_id = id.split("___")[0]
     docs = search_legal_documents({
@@ -16,7 +16,17 @@ def get_document_metadata(id: str):
     }}})
     if docs is None or docs.get("hits") is None or len(docs.get("hits")) == 0:
         return None
-    return docs.get("hits")[0]
+
+    hit = docs.get("hits")[0]
+
+    # Normalize field names for frontend compatibility
+    # Frontend expects "source" (not "_source") and "id" (not "_id")
+    return {
+        "_id": hit.get("_id"),
+        "id": hit.get("_id"),  # Add for compatibility
+        "source": hit.get("_source"),  # Rename _source to source
+        "pasal": None  # Ensure it's document metadata, not pasal-specific
+    }
 
 if __name__ == "__main__":
     import sys
