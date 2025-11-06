@@ -32,11 +32,8 @@ class RetrievalManager:
             uu_retrieval = UndangUndangRetrievalStrategy()
             kuhper_retrieval = KuhperRetrievalStrategy()
             kuhp_retrieval = KuhpRetrievalStrategy()
+            legal_doc_retrieval = LegalDocumentRetrievalStrategy()  # ✅ RE-ENABLED: peraturan_indonesia index now exists
             print("DEBUG: Strategies initialized")
-
-            # TEMPORARILY DISABLED: LegalDocumentRetrievalStrategy searches 'peraturan_indonesia' index which doesn't exist
-            # TODO: Either create peraturan_indonesia index or merge with undang-undang
-            # all_retrievals = LegalDocumentRetrievalStrategy()
 
             # Parallelize all three index searches for 2x speed improvement
             print("DEBUG: Calling ALL retrievals in PARALLEL...")
@@ -69,33 +66,36 @@ class RetrievalManager:
                     base_delay=3,
                 )
 
-            with ThreadPoolExecutor(max_workers=3) as executor:
-                # Submit all three retrieval tasks concurrently
+            def call_legal_doc_retrieval():
+                return AgentCaller.retry_with_exponential_backoff(
+                    lambda: AgentCaller.safe_agent_call(
+                        legal_doc_retrieval.search, eval_res.questions
+                    ),
+                    max_attempts=2,
+                    base_delay=3,
+                )
+
+            with ThreadPoolExecutor(max_workers=4) as executor:  # Increased to 4 workers
+                # Submit all four retrieval tasks concurrently
                 uu_future = executor.submit(call_uu_retrieval)
                 kuhper_future = executor.submit(call_kuhper_retrieval)
                 kuhp_future = executor.submit(call_kuhp_retrieval)
+                legal_doc_future = executor.submit(call_legal_doc_retrieval)  # ✅ Added legal_doc retrieval
 
                 # Wait for all results
                 uu_documents = uu_future.result()
                 kuhper_documents = kuhper_future.result()
                 kuhp_documents = kuhp_future.result()
+                legal_doc_documents = legal_doc_future.result()
 
             print(f"DEBUG: UU retrieval done, got {len(uu_documents)} documents")
             print(f"DEBUG: KUHPER retrieval done, got {len(kuhper_documents)} documents")
             print(f"DEBUG: KUHP retrieval done, got {len(kuhp_documents)} documents")
+            print(f"DEBUG: Legal Doc retrieval done, got {len(legal_doc_documents)} documents")
 
-            # TEMPORARILY DISABLED: LegalDocumentRetrievalStrategy (searches non-existent peraturan_indonesia index)
-            # all_documents = AgentCaller.retry_with_exponential_backoff(
-            #     lambda: AgentCaller.safe_agent_call(
-            #         all_retrievals.search, eval_res.questions
-            #     ),
-            #     max_attempts=2,
-            #     base_delay=3,
-            # )
-
-            # Combine results from existing indices only
+            # Combine results from all indices
             print("DEBUG: Combining results...")
-            all_documents = uu_documents + kuhper_documents + kuhp_documents
+            all_documents = uu_documents + kuhper_documents + kuhp_documents + legal_doc_documents
             print(f"DEBUG: perform_retrieval done, returning {len(all_documents)} total documents")
             return all_documents if all_documents else []
         except Exception as e:
