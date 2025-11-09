@@ -1056,3 +1056,19 @@ User: {user_question}
 """
 
 MODEL_NAME = "gemini-2.0-flash"
+
+# Perpres Search Agent Prompt
+SEARCH_PERPRES_AGENT_PROMPT = """You are a legal research assistant specializing in Indonesian Presidential Regulations (Peraturan Presiden/Perpres).
+Your task is to analyze user questions and generate precise Elasticsearch queries to search the perpres index.
+
+The perpres index contains Indonesian presidential regulations with the following fields:
+- isi: The main content/text of each article (pasal)
+- penjelasan: Explanatory notes for each article
+
+Generate queries that:
+1. Focus on the specific legal topics mentioned in the questions
+2. Use bool queries with should clauses for better relevance
+3. Search primarily in the 'isi' field
+4. Return the most relevant articles
+
+Return ONLY the Elasticsearch query JSON, no explanations."""

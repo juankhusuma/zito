@@ -56,6 +56,19 @@ services:
       - rabbitmq-lib:/var/lib/rabbitmq/
       - rabbitmq-log:/var/log/rabbitmq
 
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.8.1
+    container_name: kibana-local
+    restart: always
+    ports:
+      - 5601:5601
+    environment:
+      - SERVER_HOST=0.0.0.0
+      - ELASTICSEARCH_HOSTS=https://chat.lexin.cs.ui.ac.id/elasticsearch
+      - ELASTICSEARCH_USERNAME=elastic
+      - ELASTICSEARCH_PASSWORD=password
+      - ELASTICSEARCH_SSL_VERIFICATIONMODE=none
+
 configs:
   rabbitmq-plugins:
     content: "[rabbitmq_management]."

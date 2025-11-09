@@ -8,6 +8,7 @@ from ...retrieval.kuhp_retrieval import KuhpRetrievalStrategy
 from ...retrieval.kuhper_retrieval import KuhperRetrievalStrategy
 from ...retrieval.legal_document_retrieval import LegalDocumentRetrievalStrategy
 from ...retrieval.undang_undang_retrieval import UndangUndangRetrievalStrategy
+from ...retrieval.perpres_retrieval import PerpresRetrievalStrategy
 
 class RetrievalManager:
     @staticmethod
@@ -33,9 +34,10 @@ class RetrievalManager:
             kuhper_retrieval = KuhperRetrievalStrategy()
             kuhp_retrieval = KuhpRetrievalStrategy()
             legal_doc_retrieval = LegalDocumentRetrievalStrategy()  # ✅ RE-ENABLED: peraturan_indonesia index now exists
+            perpres_retrieval = PerpresRetrievalStrategy()  # ✅ NEW: perpres index for presidential regulations
             print("DEBUG: Strategies initialized")
 
-            # Parallelize all three index searches for 2x speed improvement
+            # Parallelize all five index searches for improved speed
             print("DEBUG: Calling ALL retrievals in PARALLEL...")
 
             # Define wrapper functions to avoid lambda closure issues
@@ -75,27 +77,39 @@ class RetrievalManager:
                     base_delay=3,
                 )
 
-            with ThreadPoolExecutor(max_workers=4) as executor:  # Increased to 4 workers
-                # Submit all four retrieval tasks concurrently
+            def call_perpres_retrieval():
+                return AgentCaller.retry_with_exponential_backoff(
+                    lambda: AgentCaller.safe_agent_call(
+                        perpres_retrieval.search, eval_res.questions
+                    ),
+                    max_attempts=2,
+                    base_delay=3,
+                )
+
+            with ThreadPoolExecutor(max_workers=5) as executor:  # Increased to 5 workers
+                # Submit all five retrieval tasks concurrently
                 uu_future = executor.submit(call_uu_retrieval)
                 kuhper_future = executor.submit(call_kuhper_retrieval)
                 kuhp_future = executor.submit(call_kuhp_retrieval)
-                legal_doc_future = executor.submit(call_legal_doc_retrieval)  # ✅ Added legal_doc retrieval
+                legal_doc_future = executor.submit(call_legal_doc_retrieval)
+                perpres_future = executor.submit(call_perpres_retrieval)  # ✅ NEW: Perpres retrieval
 
                 # Wait for all results
                 uu_documents = uu_future.result()
                 kuhper_documents = kuhper_future.result()
                 kuhp_documents = kuhp_future.result()
                 legal_doc_documents = legal_doc_future.result()
+                perpres_documents = perpres_future.result()
 
             print(f"DEBUG: UU retrieval done, got {len(uu_documents)} documents")
             print(f"DEBUG: KUHPER retrieval done, got {len(kuhper_documents)} documents")
             print(f"DEBUG: KUHP retrieval done, got {len(kuhp_documents)} documents")
             print(f"DEBUG: Legal Doc retrieval done, got {len(legal_doc_documents)} documents")
+            print(f"DEBUG: Perpres retrieval done, got {len(perpres_documents)} documents")
 
             # Combine results from all indices
             print("DEBUG: Combining results...")
-            all_documents = uu_documents + kuhper_documents + kuhp_documents + legal_doc_documents
+            all_documents = uu_documents + kuhper_documents + kuhp_documents + legal_doc_documents + perpres_documents
             print(f"DEBUG: perform_retrieval done, returning {len(all_documents)} total documents")
             return all_documents if all_documents else []
         except Exception as e:

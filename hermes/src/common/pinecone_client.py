@@ -16,6 +16,7 @@ _pc_2 = None
 _kuhp_index = None
 _kuhper_index = None
 _undang_undang_index = None
+_perpres_index = None
 
 def get_pc():
     global _pc
@@ -53,6 +54,12 @@ def get_undang_undang_index():
         _undang_undang_index = get_pc_2().Index("undang-undang")
     return _undang_undang_index
 
+def get_perpres_index():
+    global _perpres_index
+    if _perpres_index is None:
+        _perpres_index = get_pc_2().Index("perpres")
+    return _perpres_index
+
 class _LazyIndex:
     def __init__(self, getter_func):
         self._getter = getter_func
@@ -66,3 +73,4 @@ class _LazyIndex:
 kuhp_index = _LazyIndex(get_kuhp_index)
 kuhper_index = _LazyIndex(get_kuhper_index)
 undang_undang_index = _LazyIndex(get_undang_undang_index)
+perpres_index = _LazyIndex(get_perpres_index)
