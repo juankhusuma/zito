@@ -30,8 +30,18 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
     
     url = f"{os.environ.get("ES_BASE_URL", "https://chat.lexin.cs.ui.ac.id/elasticsearch")}/kuhp/_search"
     print(f"🌐 Using Elasticsearch URL: {url}")
-    
-    print("🔐 Getting authentication...")
+
+    print("🔐 Getting Elasticsearch authentication credentials...")
+    es_user = os.environ.get("ELASTICSEARCH_USER")
+    es_password = os.environ.get("ELASTICSEARCH_PASSWORD")
+
+    if es_user and es_password:
+        print(f"✅ Found Elasticsearch credentials for user: {es_user}")
+        auth = (es_user, es_password)
+    else:
+        print("⚠️ Elasticsearch credentials not found, attempting without auth...")
+        auth = None
+
     headers = {"Content-Type": "application/json"}
     
     # Set defaults
@@ -52,6 +62,7 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
             url=url,
             headers=headers,
             json=request_body,
+            auth=auth,
             timeout=30
         )
         

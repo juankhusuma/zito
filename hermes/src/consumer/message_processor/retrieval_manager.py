@@ -4,7 +4,9 @@ from ...model.search import Questions
 from ...retrieval.retrieval_context import RetrievalContext
 from ...retrieval.retrieval_factory import get_retrieval_strategy
 from .agent_caller import AgentCaller
-from ...retrieval.kuhp_retrieval import KuhpRetrievalStrategy
+# DISABLED: KUHP index does not exist in Elasticsearch yet
+# TODO: Re-enable after KUHP documents are indexed
+# from ...retrieval.kuhp_retrieval import KuhpRetrievalStrategy
 from ...retrieval.kuhper_retrieval import KuhperRetrievalStrategy
 from ...retrieval.legal_document_retrieval import LegalDocumentRetrievalStrategy
 from ...retrieval.undang_undang_retrieval import UndangUndangRetrievalStrategy
@@ -32,7 +34,9 @@ class RetrievalManager:
             print("DEBUG: Initializing retrieval strategies...")
             uu_retrieval = UndangUndangRetrievalStrategy()
             kuhper_retrieval = KuhperRetrievalStrategy()
-            kuhp_retrieval = KuhpRetrievalStrategy()
+            # DISABLED: KUHP index does not exist in Elasticsearch yet
+            # TODO: Re-enable after KUHP documents are indexed
+            # kuhp_retrieval = KuhpRetrievalStrategy()
             legal_doc_retrieval = LegalDocumentRetrievalStrategy()  # ✅ RE-ENABLED: peraturan_indonesia index now exists
             perpres_retrieval = PerpresRetrievalStrategy()  # ✅ NEW: perpres index for presidential regulations
             print("DEBUG: Strategies initialized")
@@ -59,14 +63,16 @@ class RetrievalManager:
                     base_delay=3,
                 )
 
-            def call_kuhp_retrieval():
-                return AgentCaller.retry_with_exponential_backoff(
-                    lambda: AgentCaller.safe_agent_call(
-                        kuhp_retrieval.search, eval_res.questions
-                    ),
-                    max_attempts=2,
-                    base_delay=3,
-                )
+            # DISABLED: KUHP index does not exist in Elasticsearch yet
+            # TODO: Re-enable after KUHP documents are indexed
+            # def call_kuhp_retrieval():
+            #     return AgentCaller.retry_with_exponential_backoff(
+            #         lambda: AgentCaller.safe_agent_call(
+            #             kuhp_retrieval.search, eval_res.questions
+            #         ),
+            #         max_attempts=2,
+            #         base_delay=3,
+            #     )
 
             def call_legal_doc_retrieval():
                 return AgentCaller.retry_with_exponential_backoff(
@@ -86,18 +92,21 @@ class RetrievalManager:
                     base_delay=3,
                 )
 
-            with ThreadPoolExecutor(max_workers=5) as executor:  # Increased to 5 workers
-                # Submit all five retrieval tasks concurrently
+            with ThreadPoolExecutor(max_workers=4) as executor:  # Reduced to 4 workers (KUHP disabled)
+                # Submit all four retrieval tasks concurrently (KUHP disabled until index exists)
                 uu_future = executor.submit(call_uu_retrieval)
                 kuhper_future = executor.submit(call_kuhper_retrieval)
-                kuhp_future = executor.submit(call_kuhp_retrieval)
+                # DISABLED: KUHP retrieval until index exists
+                # kuhp_future = executor.submit(call_kuhp_retrieval)
                 legal_doc_future = executor.submit(call_legal_doc_retrieval)
                 perpres_future = executor.submit(call_perpres_retrieval)  # ✅ NEW: Perpres retrieval
 
                 # Wait for all results
                 uu_documents = uu_future.result()
                 kuhper_documents = kuhper_future.result()
-                kuhp_documents = kuhp_future.result()
+                # DISABLED: KUHP retrieval until index exists
+                # kuhp_documents = kuhp_future.result()
+                kuhp_documents = []  # Return empty list instead
                 legal_doc_documents = legal_doc_future.result()
                 perpres_documents = perpres_future.result()
 
