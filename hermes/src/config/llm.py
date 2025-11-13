@@ -1061,7 +1061,7 @@ if the string you're returning isn't a valid query or json it will crash and i a
 User: {user_question}
 """
 
-MODEL_NAME = "gemini-2.0-flash"
+MODEL_NAME = "gemini-2.5-flash"
 
 # Perpres Search Agent Prompt
 SEARCH_PERPRES_AGENT_PROMPT = """You are a legal research assistant specializing in Indonesian Presidential Regulations (Peraturan Presiden/Perpres).
