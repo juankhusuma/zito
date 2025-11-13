@@ -9,13 +9,24 @@ interface DocumentDialogProps {
     oldDocId?: string;
     references: Map<string, any>;
     getPdfUrl: (doc: any) => string;
+    isSuperscript?: boolean;
+    citationNumber?: string;
 }
 
-export function DocumentDialog({ docId, oldDocId, references, getPdfUrl }: DocumentDialogProps) {
+export function DocumentDialog({ docId, oldDocId, references, getPdfUrl, isSuperscript, citationNumber }: DocumentDialogProps) {
+    // Determine if this is being used in the bottom reference list
+    const isBottomReference = citationNumber && !isSuperscript;
+
     return (
         <Dialog>
-            <DialogTrigger className="bg-[#192f59] cursor-pointer text-white px-2 py-1 no-underline rounded-md hover:opacity-60 opacity-80 transition-opacity font-medium text-xs">
-                {(() => {
+            <DialogTrigger className={
+                isSuperscript
+                    ? "text-blue-600 hover:text-blue-800 cursor-pointer no-underline font-bold text-xs align-super"
+                    : isBottomReference
+                    ? "text-blue-600 hover:text-blue-800 cursor-pointer no-underline font-bold text-xs"
+                    : "bg-[#192f59] cursor-pointer text-white px-2 py-1 no-underline rounded-md hover:opacity-60 opacity-80 transition-opacity font-medium text-xs"
+            }>
+                {(isSuperscript || isBottomReference) ? citationNumber : (() => {
                     const refDoc = references.get(docId) || references.get(oldDocId || '');
                     const metadata = refDoc?.doc?.source?.metadata;
 

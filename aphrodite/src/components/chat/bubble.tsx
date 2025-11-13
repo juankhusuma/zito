@@ -5,9 +5,6 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Chat } from "@/pages/chat/Session";
 import { useEffect, useState, useRef } from "react";
-import { TooltipProvider } from "@radix-ui/react-tooltip";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
-import { formatIEEEReference } from "@/utils/formatReferences";
 import { MessageLoading } from "./MessageLoading";
 import { ActionBar } from "./ActionBar";
 import { DocumentDialog } from "./DocumentDialog";
@@ -88,7 +85,12 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                         <Markdown remarkPlugins={[remarkGfm]} components={{
                                             a: ({ node, children }) => {
                                                 const href = node?.properties?.href as string;
-                                                
+
+                                                // Check if this is a numbered citation like [1], [2], etc.
+                                                const isCitation = href?.includes("chat.lexin.cs.ui.ac.id/details/") &&
+                                                                  typeof children === 'string' &&
+                                                                  /^\[\d+\]$/.test(children as string);
+
                                                 // Handle non-citation links (fallback to regular link)
                                                 if (!href || !href.includes("chat.lexin.cs.ui.ac.id/details/")) {
                                                     return <a href={href} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 underline">{children}</a>;
@@ -277,15 +279,16 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                     setReferences(newReferences);
                                                 }
 
+                                                // Render as superscript for numbered citations, regular button for others
                                                 return (
-                                                    <a rel="noreferrer">
-                                                        <DocumentDialog
-                                                            docId={docId}
-                                                            oldDocId={oldDocId}
-                                                            references={references}
-                                                            getPdfUrl={getPdfUrl}
-                                                        />
-                                                    </a>
+                                                    <DocumentDialog
+                                                        docId={docId}
+                                                        oldDocId={oldDocId}
+                                                        references={references}
+                                                        getPdfUrl={getPdfUrl}
+                                                        isSuperscript={isCitation}
+                                                        citationNumber={isCitation ? children as string : undefined}
+                                                    />
                                                 )
                                             },
                                         }}>
@@ -296,7 +299,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                             })}
                                         </Markdown>
 
-                                        {/* Reference List with Improved Styling */}
+                                        {/* Reference List with Clickable Citations */}
                                         {props.sender === "assistant" && sortedReferences.length > 0 && (
                                             <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
                                                 <h4 className="font-semibold text-sm flex items-center gap-2 mb-3 text-[#192f59]">
@@ -304,41 +307,38 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                         <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>
                                                         <polyline points="10 2 10 10 13 7 16 10 16 2"></polyline>
                                                     </svg>
-                                                    Sumber Referensi
+                                                    Referensi
                                                 </h4>
-                                                <div className="grid grid-cols-1 gap-2 mb-5">
-                                                    <TooltipProvider>
+                                                <div className="space-y-1.5 mb-5">
+                                                    {sortedReferences.map((ref, index) => {
+                                                        const docId = ref.doc?._id || ref.doc?.id;
+                                                        const oldDocId = docId;
+                                                        const metadata = ref.doc?.source?.metadata;
+                                                        const bentukSingkat = metadata?.["Bentuk Singkat"] || metadata?.Jenis || "";
+                                                        const nomor = metadata?.Nomor ? `No. ${metadata.Nomor}` : "";
+                                                        const tahun = metadata?.Tahun ? `Tahun ${metadata.Tahun}` : "";
+                                                        const judul = metadata?.Judul || "Dokumen Hukum";
 
-                                                        {sortedReferences.map((ref, index) => (
-                                                            <a
-                                                                key={index}
-                                                                href={getPdfUrl(ref.doc)}
-                                                                target="_blank"
-                                                                rel="noreferrer"
-                                                                className="flex items-center gap-3 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group"
-                                                            >
-                                                                <div className="flex-1 text-sm">
-                                                                    <Tooltip>
-                                                                        <div className="text-xs text-gray-500 mt-1 cursor-pointer">
-                                                                            <TooltipTrigger className="text-left">
-                                                                                {formatIEEEReference(ref.doc, ref.number)}
-                                                                            </TooltipTrigger>
-                                                                        </div>
-                                                                        <TooltipContent className="max-w-md">
-                                                                            {ref.doc?.source?.metadata?.Judul || "Untitled Document"}
-                                                                        </TooltipContent>
-                                                                    </Tooltip>
-                                                                </div>
-                                                                <div className="flex-shrink-0 text-[#192f59] opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-external-link">
-                                                                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                                                                        <polyline points="15 3 21 3 21 9"></polyline>
-                                                                        <line x1="10" y1="14" x2="21" y2="3"></line>
-                                                                    </svg>
-                                                                </div>
-                                                            </a>
-                                                        ))}
-                                                    </TooltipProvider>
+                                                        return (
+                                                            <div key={index} className="flex items-start gap-2 text-sm hover:bg-gray-50 rounded px-2 py-1 transition-colors">
+                                                                <span className="text-blue-600 font-bold text-xs mt-0.5 flex-shrink-0">
+                                                                    <DocumentDialog
+                                                                        docId={docId}
+                                                                        oldDocId={oldDocId}
+                                                                        references={references}
+                                                                        getPdfUrl={getPdfUrl}
+                                                                        isSuperscript={false}
+                                                                        citationNumber={`[${ref.number}]`}
+                                                                    />
+                                                                </span>
+                                                                <span className="text-gray-700 text-xs leading-relaxed">
+                                                                    <span className="font-medium">{[bentukSingkat, nomor, tahun].filter(Boolean).join(" ")}</span>
+                                                                    {[bentukSingkat, nomor, tahun].filter(Boolean).length > 0 && " - "}
+                                                                    {judul}
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
                                             </div>
                                         )}
