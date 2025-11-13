@@ -129,11 +129,15 @@ def answer_user(history: History, documents: list[dict], serialized_answer_res: 
                     "_index": "kuhper",
                 })
             else:
-                doc["id"] = "UU_1_2023"
-                need_fetch_metadata.append({
-                    "_id": "UU_1_2023",
-                    "_index": "kuhp",
-                })
+                # Keep original ID for all other documents (Perpres, PP, etc.)
+                # Only add to metadata fetch list if it looks like a valid document ID
+                original_id = doc["id"]
+                if original_id and isinstance(original_id, str) and len(original_id) > 0:
+                    need_fetch_metadata.append({
+                        "_id": original_id,
+                        "_index": "peraturan_indonesia",  # Metadata is in peraturan_indonesia index
+                    })
+                # Note: DO NOT override doc["id"] here - keep the original ID!
 
     print(f"Need to fetch metadata for: {need_fetch_metadata} $$$$$$$$$$$$$$$")
 
