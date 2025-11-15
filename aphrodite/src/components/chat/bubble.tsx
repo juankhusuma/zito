@@ -108,11 +108,10 @@ export default function ChatBubble(props: ChatBubbleProps) {
 
                                                 // Check if this is a numbered citation like [1], [2], etc.
                                                 const childText = Array.isArray(children) ? children[0] : children;
-                                                const isCitation = href?.includes("chat.lexin.cs.ui.ac.id/details/") &&
-                                                    typeof childText === "string" &&
+                                                const isCitation = typeof childText === "string" &&
                                                     /^\[\d+\]$/.test(childText as string);
 
-                                                // Handle non-citation links (fallback to regular link)
+                                                // Handle non-citation, non-details links (regular external link)
                                                 if (!href || !href.includes("chat.lexin.cs.ui.ac.id/details/")) {
                                                     return <a href={href} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 underline">{children}</a>;
                                                 }
@@ -157,7 +156,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                     if (doc) break; // Exit outer loop if found
                                                 }
 
-                                                if (isCitation && !references.has(docId) && doc && doc.source && !references.has(oldDocId)) {
+                                                if (!references.has(docId) && doc && doc.source && !references.has(oldDocId)) {
                                                     const newReferences = new Map(references);
                                                     newReferences.set(docId, {
                                                         number: newReferences.size + 1,
@@ -168,7 +167,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                 }
 
                                                 // Memoized fetch: only fetch if not already fetched
-                                                if (isCitation && !doc && !fetchedIds.current.has(docId) && !fetchedIds.current.has(oldDocId) && !references.has(docId) && !references.has(oldDocId)) {
+                                                if (!doc && !fetchedIds.current.has(docId) && !fetchedIds.current.has(oldDocId) && !references.has(docId) && !references.has(oldDocId)) {
                                                     fetchedIds.current.add(docId);
                                                     fetchedIds.current.add(oldDocId);
                                                     
