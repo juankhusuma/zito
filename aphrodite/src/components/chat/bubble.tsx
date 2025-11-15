@@ -42,6 +42,24 @@ export default function ChatBubble(props: ChatBubbleProps) {
         .sort((a, b) => a.number - b.number));
     const fetchedIds = useRef<Set<string>>(new Set());
 
+    const dedupeParagraphCitations = (content: string): string => {
+        const paragraphs = content.split(/\n{2,}/);
+        const citationRegex = /\[\[(\d+)\]\]\(https:\/\/chat\.lexin\.cs\.ui\.ac\.id\/details\/([^\)\s]+)\)/g;
+
+        const dedupedParagraphs = paragraphs.map((paragraph) => {
+            const seenDocIds = new Set<string>();
+            return paragraph.replace(citationRegex, (match, _num, docId) => {
+                if (seenDocIds.has(docId)) {
+                    return "";
+                }
+                seenDocIds.add(docId);
+                return match;
+            });
+        });
+
+        return dedupedParagraphs.join("\n\n");
+    };
+
     useEffect(() => {
         const sorted = Array.from(references.values()).sort((a, b) => a.number - b.number);
         setSortedReferences(sorted);
@@ -54,6 +72,8 @@ export default function ChatBubble(props: ChatBubbleProps) {
         }
         return "#";
     };
+
+    const cleanedText = dedupeParagraphCitations(text);
 
     return (
         <div className={cn("flex mb-3 text-xs lg:text-sm", props.sender === "user" ? "flex-row" : "flex-row-reverse")}>
@@ -87,9 +107,10 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                 const href = node?.properties?.href as string;
 
                                                 // Check if this is a numbered citation like [1], [2], etc.
+                                                const childText = Array.isArray(children) ? children[0] : children;
                                                 const isCitation = href?.includes("chat.lexin.cs.ui.ac.id/details/") &&
-                                                                  typeof children === 'string' &&
-                                                                  /^\[\d+\]$/.test(children as string);
+                                                    typeof childText === "string" &&
+                                                    /^\[\d+\]$/.test(childText as string);
 
                                                 // Handle non-citation links (fallback to regular link)
                                                 if (!href || !href.includes("chat.lexin.cs.ui.ac.id/details/")) {
@@ -248,7 +269,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                             _id: docId,
                                                             source: {
                                                                 metadata: {
-                                                                    Judul: children as string || docId,
+                                                                    Judul: (childText as string) || docId,
                                                                     "Bentuk Singkat": docId
                                                                 }
                                                             }
@@ -287,12 +308,12 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                         references={references}
                                                         getPdfUrl={getPdfUrl}
                                                         isSuperscript={isCitation}
-                                                        citationNumber={isCitation ? children as string : undefined}
+                                                        citationNumber={isCitation ? (childText as string) : undefined}
                                                     />
                                                 )
                                             },
                                         }}>
-                                            {text.replace("```", "").replace(/\]\(([^)]+)\)/g, (_, url) => {
+                                            {cleanedText.replace("```", "").replace(/\]\(([^)]+)\)/g, (_: string, url: string) => {
                                                 // Replace spaces with %20 in URLs
                                                 const encodedUrl = url.replace(/ /g, '%20');
                                                 return `](${encodedUrl})`;
