@@ -7,6 +7,7 @@ from ..config.llm import MODEL_NAME, CHATBOT_SYSTEM_PROMPT, ANSWERING_AGENT_PROM
 from ..model.search import History, QnAList, Questions
 from src.tools.retrieve_document_metadata import get_document_metadata
 from src.common.supabase_client import client as supabase
+from src.utils.citation_processor import CitationProcessor
 
 def answer_generated_questions(history: History, documents: list[dict], serilized_check_res: Questions):
     time.sleep(1)
@@ -27,6 +28,7 @@ def answer_generated_questions(history: History, documents: list[dict], serilize
 def stream_answer_user(context: History, message_id: str, documents: list[dict], serialized_answer_res: QnAList):
     """Stream the response and update the database in real-time"""
     full_content = ""
+    citation_processor = CitationProcessor()
     
     try:
         # Generate streaming response
@@ -58,11 +60,23 @@ def stream_answer_user(context: History, message_id: str, documents: list[dict],
                     print(f"Error updating streaming content: {str(db_error)}")
                     continue
         
-        # Final update with complete content
+        # Final post-processing: clean citations & build reference list
+        try:
+            processed = citation_processor.process(full_content, documents)
+            final_content = processed["content"]
+            # references = processed["references"] TODO: dipakai nanti kalau sudah ada kolom
+        except Exception as process_error:
+            # If anything goes wrong in citation processing, fall back to raw content
+            print(f"Citation processing error: {str(process_error)}")
+            final_content = full_content
+            references = []
+
+        # Final update with complete, cleaned content
         supabase.table("chat").update({
-            "content": full_content,
+            "content": final_content,
             "state": "done",
             "documents": json.dumps(documents, indent=2) if documents else "[]",
+            # "references": json.dumps(references, indent=2) if references else None, TODO: dipakai nanti kalau sudah ada kolom
         }).eq("id", message_id).execute()
         
         # Create a mock response object for compatibility
@@ -83,7 +97,7 @@ def stream_answer_user(context: History, message_id: str, documents: list[dict],
             ),
         )
         
-        # Update with final content
+        # Update with final content (no post-processing in fallback path)
         supabase.table("chat").update({
             "content": response.text,
             "state": "done",
