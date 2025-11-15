@@ -136,7 +136,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                     if (doc) break; // Exit outer loop if found
                                                 }
 
-                                                if (!references.has(docId) && doc && doc.source && !references.has(oldDocId)) {
+                                                if (isCitation && !references.has(docId) && doc && doc.source && !references.has(oldDocId)) {
                                                     const newReferences = new Map(references);
                                                     newReferences.set(docId, {
                                                         number: newReferences.size + 1,
@@ -147,7 +147,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
                                                 }
 
                                                 // Memoized fetch: only fetch if not already fetched
-                                                if (!doc && !fetchedIds.current.has(docId) && !fetchedIds.current.has(oldDocId) && !references.has(docId) && !references.has(oldDocId)) {
+                                                if (isCitation && !doc && !fetchedIds.current.has(docId) && !fetchedIds.current.has(oldDocId) && !references.has(docId) && !references.has(oldDocId)) {
                                                     fetchedIds.current.add(docId);
                                                     fetchedIds.current.add(oldDocId);
                                                     
