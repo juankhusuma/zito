@@ -62,12 +62,30 @@ def stream_answer_user(context: History, message_id: str, documents: list[dict],
         
         # Final post-processing: clean citations & build reference list
         try:
+            print("[Citation] Starting citation post-processing...")
             processed = citation_processor.process(full_content, documents)
             final_content = processed["content"]
-            # references = processed["references"] TODO: dipakai nanti kalau sudah ada kolom
+            references = processed.get("references", [])
+
+            # Lightweight observability for citations in production logs
+            try:
+                total_citations = len(citation_processor.extract_citations(full_content))
+            except Exception:
+                total_citations = -1
+
+            referenced_doc_ids = [ref.get("doc_id") for ref in references if isinstance(ref, dict)]
+            unique_referenced_doc_ids = sorted({doc_id for doc_id in referenced_doc_ids if doc_id})
+
+            print(
+                "[Citation] Processed answer:",
+                f"total_citations_in_text={total_citations}",
+                f"references_count={len(references)}",
+                f"referenced_doc_ids={unique_referenced_doc_ids}",
+            )
+
         except Exception as process_error:
             # If anything goes wrong in citation processing, fall back to raw content
-            print(f"Citation processing error: {str(process_error)}")
+            print(f"[Citation] Citation processing error: {str(process_error)}")
             final_content = full_content
             references = []
 
