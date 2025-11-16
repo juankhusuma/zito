@@ -90,6 +90,7 @@ def stream_answer_user(context: History, message_id: str, documents: list[dict],
             references = []
 
         # Final update with complete, cleaned content and canonical citations
+        print("[Citation] Final canonical citations:", json.dumps(references, ensure_ascii=False))
         supabase.table("chat").update({
             "content": final_content,
             "state": "done",
