@@ -95,7 +95,12 @@ export default function ChatBubble(props: ChatBubbleProps) {
         return "#";
     };
 
-    const cleanedText = dedupeParagraphCitations(text);
+    const stripLlmReferenceSection = (content: string): string => {
+        const refHeadingRegex = /\n+#+\s*Referensi[\s\S]*$/i;
+        return content.replace(refHeadingRegex, "");
+    };
+
+    const cleanedText = dedupeParagraphCitations(stripLlmReferenceSection(text));
 
     return (
         <div className={cn("flex mb-3 text-xs lg:text-sm", props.sender === "user" ? "flex-row" : "flex-row-reverse")}>
