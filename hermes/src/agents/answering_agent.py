@@ -89,12 +89,13 @@ def stream_answer_user(context: History, message_id: str, documents: list[dict],
             final_content = full_content
             references = []
 
-        # Final update with complete, cleaned content
+        # Final update with complete, cleaned content and canonical citations
         supabase.table("chat").update({
             "content": final_content,
             "state": "done",
             "documents": json.dumps(documents, indent=2) if documents else "[]",
-            # "references": json.dumps(references, indent=2) if references else None, TODO: dipakai nanti kalau sudah ada kolom
+            # Store canonical citations list into the new JSONB column
+            "citations": references if references else None,
         }).eq("id", message_id).execute()
         
         # Create a mock response object for compatibility
@@ -120,6 +121,8 @@ def stream_answer_user(context: History, message_id: str, documents: list[dict],
             "content": response.text,
             "state": "done",
             "documents": json.dumps(documents, indent=2) if documents else "[]",
+            # No citation post-processing in this fallback path
+            "citations": None,
         }).eq("id", message_id).execute()
         
         return response

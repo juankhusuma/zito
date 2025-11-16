@@ -38,8 +38,7 @@ export default function ChatBubble(props: ChatBubbleProps) {
         state = "extracting";
     }
     const [references, setReferences] = useState<Map<string, any>>(new Map());
-    const [sortedReferences, setSortedReferences] = useState<any[]>(Array.from(references.values())
-        .sort((a, b) => a.number - b.number));
+    const [sortedReferences, setSortedReferences] = useState<any[]>([]);
     const fetchedIds = useRef<Set<string>>(new Set());
 
     const dedupeParagraphCitations = (content: string): string => {
@@ -61,10 +60,33 @@ export default function ChatBubble(props: ChatBubbleProps) {
     };
 
     useEffect(() => {
-        const sorted = Array.from(references.values()).sort((a, b) => a.number - b.number);
-        setSortedReferences(sorted);
-    }
-        , [references]);
+        // If backend provides canonical citations, prefer those for the reference panel
+        if (props.sender === "assistant" && Array.isArray(props.chat.citations) && props.chat.citations.length > 0) {
+            const canonical = props.chat.citations
+                .filter((c) => c && typeof c.number === "number")
+                .sort((a, b) => a.number - b.number)
+                .map((c) => ({
+                    number: c.number,
+                    href: `https://chat.lexin.cs.ui.ac.id/details/${c.doc_id}`,
+                    doc: {
+                        _id: c.doc_id,
+                        id: c.doc_id,
+                        source: {
+                            metadata: {
+                                Judul: c.title,
+                                "Bentuk Singkat": c.doc_id,
+                            },
+                        },
+                    },
+                }));
+            setSortedReferences(canonical);
+            return;
+        }
+
+        // Fallback: derive references from inline links as before
+        const derived = Array.from(references.values()).sort((a, b) => a.number - b.number);
+        setSortedReferences(derived);
+    }, [references, props.sender, props.chat.citations]);
 
     const getPdfUrl = (doc: any): string => {
         if (doc?.source?.files && doc.source.files.length > 0) {

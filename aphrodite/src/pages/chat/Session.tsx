@@ -25,6 +25,12 @@ export interface Chat {
     is_liked?: boolean;
     is_disliked?: boolean;
     documents?: string;
+    citations?: {
+        number: number;
+        doc_id: string;
+        title: string;
+        url: string;
+    }[];
     state: "done" | "loading" | "error" | "generating" | "searching" | "extracting";
     thinking_start_time?: string;
     thinking_duration?: number;
