@@ -41,13 +41,27 @@ const fetchChats = async (sessionId: string): Promise<Chat[]> => {
         .from("chat")
         .select("*")
         .eq("session_uid", sessionId)
-        .order('created_at', { ascending: true });
-    
+        .order("created_at", { ascending: true });
+
     if (error) {
         throw new Error(error.message);
     }
-    
-    return data || [];
+
+    // Normalize citations from JSONB (may come as string)
+    return (data || []).map((chat: any) => {
+        let citations = chat.citations;
+        if (typeof citations === "string") {
+            try {
+                citations = JSON.parse(citations);
+            } catch {
+                citations = undefined;
+            }
+        }
+        return {
+            ...chat,
+            citations,
+        } as Chat;
+    });
 };
 
 export default function Session() {
@@ -128,7 +142,16 @@ export default function Session() {
 
 
     const memoizedChatList = useMemo(() => {
-        const chatData = sessionId ? chats : welcomeChats;
+        const chatData: Chat[] = sessionId ? chats : (welcomeChats as Chat[]);
+        // Debug: inspect citations shape from Supabase (only for real chats)
+        const last = chatData[chatData.length - 1];
+        if (last && last.session_uid) {
+            console.log("[Debug] Chat citations sample", {
+                id: last.id,
+                rawCitations: last.citations,
+                type: typeof last.citations,
+            });
+        }
         return chatData
             .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
             .map((chat) => (
