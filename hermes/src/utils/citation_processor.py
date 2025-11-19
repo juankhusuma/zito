@@ -6,7 +6,7 @@ from typing import Dict, List
 
 
 CITATION_PATTERN = re.compile(
-    r"\[\[(?P<number>\d+)\]\]\(https://chat\.lexin\.cs\.ui\.ac\.id/details/(?P<doc_id>[^)]+)\)"
+    r"(?:\[{1,2}(?P<number>\d+)\]{1,2}\((?:https://chat\.lexin\.cs\.ui\.ac\.id/details/)?(?P<doc_id>[^)]+)\))|(?:\((?P<doc_id_simple>[^)]+)\))"
 )
 
 
@@ -29,7 +29,7 @@ class CitationProcessor:
         self.pattern = CITATION_PATTERN
 
     def extract_citations(self, text: str) -> List[Citation]:
-        """Extract all citations of form [[N]](https://chat.lexin.cs.ui.ac.id/details/{doc_id}).
+        """Extract all citations of form [[N]](https://chat.lexin.cs.ui.ac.id/details/{doc_id}) or (doc_id).
 
         Returns a list of Citation objects with number, doc_id, full url, and
         position (start/end index in the original text).
@@ -37,15 +37,31 @@ class CitationProcessor:
 
         citations: List[Citation] = []
         for match in self.pattern.finditer(text):
-            number_str = match.group("number")
+            # Check which group matched
             doc_id = match.group("doc_id")
-            try:
-                number = int(number_str)
-            except ValueError:
-                # Skip malformed numbers; we don't want to raise in production.
+            number_str = match.group("number")
+
+            if doc_id:
+                # Standard format: [[N]](url)
+                try:
+                    number = int(number_str)
+                except ValueError:
+                    continue
+            else:
+                # Simple format: (doc_id)
+                doc_id = match.group("doc_id_simple")
+                # Assign dummy number 0, will be renumbered anyway
+                number = 0
+
+            if not doc_id:
                 continue
 
-            url = match.group(0)[match.group(0).index("(") + 1 : -1]
+            # Clean up doc_id if it contains URL parts (just in case)
+            if "/details/" in doc_id:
+                doc_id = doc_id.split("/details/")[-1]
+
+            url = f"https://chat.lexin.cs.ui.ac.id/details/{doc_id}"
+            
             citations.append(
                 Citation(
                     number=number,
@@ -89,7 +105,14 @@ class CitationProcessor:
             return text
 
         def _replace(match: re.Match) -> str:
-            doc_id = match.group("doc_id")
+            doc_id = match.group("doc_id") or match.group("doc_id_simple")
+            
+            if not doc_id:
+                return match.group(0)
+
+            if "/details/" in doc_id:
+                doc_id = doc_id.split("/details/")[-1]
+
             # Jika doc_id tidak ada di map (edge case), biarkan apa adanya.
             new_number = citation_map.get(doc_id)
             if new_number is None:
