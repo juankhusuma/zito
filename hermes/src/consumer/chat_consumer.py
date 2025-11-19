@@ -79,7 +79,14 @@ class ChatConsumer:
                     message_ref = SessionManager.init_message(
                         body["session_uid"], body["user_uid"]
                     )
-                    message_id = message_ref.data[0]["id"]
+                    # Handle message_ref structure which might be a dict or object
+                    if isinstance(message_ref, dict) and "data" in message_ref and message_ref["data"]:
+                        message_id = message_ref["data"][0]["id"]
+                    elif hasattr(message_ref, "data") and message_ref.data:
+                        message_id = message_ref.data[0]["id"]
+                    else:
+                        raise Exception("Failed to get message_id from init_message response")
+                        
                     print(f"DEBUG: Created new message_id: {message_id}")
 
                 print(f"DEBUG: Calling evaluate_question...")
@@ -131,12 +138,19 @@ class ChatConsumer:
                 # Mark message as failed in database
                 if message_ref:
                     try:
-                        message_id = message_ref.data[0]["id"]
-                        supabase.table("chat").update({
-                            "state": "failed",
-                            "content": f"Processing failed after {MAX_RETRIES} retries: {str(e)}"
-                        }).eq("id", message_id).execute()
-                        logger.info(f"Message {message_id} marked as failed in database")
+                        # Handle message_ref structure which might be a dict or object
+                        message_id = None
+                        if isinstance(message_ref, dict) and "data" in message_ref and message_ref["data"]:
+                            message_id = message_ref["data"][0]["id"]
+                        elif hasattr(message_ref, "data") and message_ref.data:
+                            message_id = message_ref.data[0]["id"]
+                        
+                        if message_id:
+                            supabase.table("chat").update({
+                                "state": "failed",
+                                "content": f"Processing failed after {MAX_RETRIES} retries: {str(e)}"
+                            }).eq("id", message_id).execute()
+                            logger.info(f"Message {message_id} marked as failed in database")
                     except Exception as db_error:
                         logger.error(f"Failed to update failed message in DB: {db_error}")
             else:
