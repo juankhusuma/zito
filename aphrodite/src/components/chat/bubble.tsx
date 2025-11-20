@@ -79,8 +79,8 @@ export default function ChatBubble(props: ChatBubbleProps) {
             id: c.doc_id,
             source: {
               metadata: {
-                Judul: c.title,
-                "Bentuk Singkat": c.doc_id,
+                Judul: c.title || c.doc_id,
+                "Bentuk Singkat": undefined,
               },
             },
           },
