@@ -168,7 +168,12 @@ class CitationProcessor:
                 # Untuk menjaga invariant "no phantom references", kita skip.
                 continue
 
-            metadata = doc.get("_source", {}).get("metadata") or doc.get("metadata") or {}
+            metadata = (
+                doc.get("_source", {}).get("metadata")
+                or doc.get("metadata")
+                or doc.get("source", {}).get("metadata")
+                or {}
+            )
             title = metadata.get("Judul") or metadata.get("title") or ""
 
             references.append(
