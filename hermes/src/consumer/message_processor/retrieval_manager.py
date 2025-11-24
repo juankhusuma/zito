@@ -102,13 +102,13 @@ class RetrievalManager:
                 perpres_future = executor.submit(call_perpres_retrieval)  # ✅ NEW: Perpres retrieval
 
                 # Wait for all results
-                uu_documents = uu_future.result()
-                kuhper_documents = kuhper_future.result()
+                uu_documents = uu_future.result() or []
+                kuhper_documents = kuhper_future.result() or []
                 # DISABLED: KUHP retrieval until index exists
                 # kuhp_documents = kuhp_future.result()
                 kuhp_documents = []  # Return empty list instead
-                legal_doc_documents = legal_doc_future.result()
-                perpres_documents = perpres_future.result()
+                legal_doc_documents = legal_doc_future.result() or []
+                perpres_documents = perpres_future.result() or []
 
             print(f"DEBUG: UU retrieval done, got {len(uu_documents)} documents")
             print(f"DEBUG: KUHPER retrieval done, got {len(kuhper_documents)} documents")

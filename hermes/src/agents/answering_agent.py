@@ -73,7 +73,7 @@ def stream_answer_user(context: History, message_id: str, documents: list[dict],
                     }
                     # Only update thinking_duration if we calculated it
                     if thinking_duration is not None:
-                        update_payload["thinking_duration"] = thinking_duration
+                        update_payload["thinking_duration"] = int(thinking_duration * 1000)
                         
                     supabase.table("chat").update(update_payload).eq("id", message_id).execute()
                 except Exception as db_error:
@@ -163,7 +163,7 @@ def answer_user(history: History, documents: list[dict], serialized_answer_res: 
                 doc["pasal"] = doc["_id"].split("___")[1]
                 doc["_id"] = doc["_id"].split("___")[0]
             if doc["_index"] == "undang-undang":
-                doc["_id"] = doc['_id'].replace('Nomor_', '').replace('Tahun_', '')
+                doc["_id"] = doc['_id'].replace('Nomor_', '').replace('Tahun_', '').replace('.pdf', '')
             if doc["_index"] == "kuhper":
                 doc["_id"] = "KUH_Perdata"
             if doc["_index"] == "kuhp":

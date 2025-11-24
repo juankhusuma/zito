@@ -135,8 +135,21 @@ class CitationProcessor:
         if not citations or not retrieved_docs:
             return []
 
-        valid_ids = {str(doc.get("_id")) for doc in retrieved_docs if doc.get("_id") is not None}
-        return [c for c in citations if c.doc_id in valid_ids]
+        # Normalize IDs by stripping .pdf suffix to handle potential mismatches
+        valid_ids = set()
+        for doc in retrieved_docs:
+            doc_id = str(doc.get("_id")) if doc.get("_id") is not None else None
+            if doc_id:
+                valid_ids.add(doc_id)
+                valid_ids.add(doc_id.replace(".pdf", ""))
+
+        valid_citations = []
+        for c in citations:
+            # Check both exact match and version without .pdf
+            if c.doc_id in valid_ids or c.doc_id.replace(".pdf", "") in valid_ids:
+                valid_citations.append(c)
+        
+        return valid_citations
 
     def build_reference_list(
         self,
