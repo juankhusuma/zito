@@ -89,7 +89,7 @@ def stream_answer_user(context: History, message_id: str, documents: list[dict],
 
             # Lightweight observability for citations in production logs
             try:
-                total_citations = len(citation_processor.extract_citations(full_content))
+                total_citations = len(citation_processor.extract_citations(full_content, documents))
             except Exception:
                 total_citations = -1
 

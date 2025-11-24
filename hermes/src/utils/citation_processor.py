@@ -6,7 +6,7 @@ from typing import Dict, List
 
 
 CITATION_PATTERN = re.compile(
-    r"(?:\[{1,2}(?P<number>\d+)\]{1,2}\((?:https://chat\.lexin\.cs\.ui\.ac\.id/details/)?(?P<doc_id>[^)]+)\))|(?:\((?P<doc_id_simple>[^)]+)\))"
+    r"(?:\[{1,2}(?P<number>\d+)\]{1,2}(?:\((?:https://chat\.lexin\.cs\.ui\.ac\.id/details/)?(?P<doc_id>[^)]+)\))?)"
 )
 
 
@@ -28,8 +28,8 @@ class CitationProcessor:
     def __init__(self) -> None:
         self.pattern = CITATION_PATTERN
 
-    def extract_citations(self, text: str) -> List[Citation]:
-        """Extract all citations of form [[N]](https://chat.lexin.cs.ui.ac.id/details/{doc_id}) or (doc_id).
+    def extract_citations(self, text: str, retrieved_docs: List[dict] = None) -> List[Citation]:
+        """Extract all citations of form [[N]](https://chat.lexin.cs.ui.ac.id/details/{doc_id}) or [[N]].
 
         Returns a list of Citation objects with number, doc_id, full url, and
         position (start/end index in the original text).
@@ -41,17 +41,22 @@ class CitationProcessor:
             doc_id = match.group("doc_id")
             number_str = match.group("number")
 
-            if doc_id:
-                # Standard format: [[N]](url)
+            if number_str:
                 try:
                     number = int(number_str)
                 except ValueError:
                     continue
+                
+                # If doc_id is missing but we have a number, try to resolve from retrieved_docs
+                if not doc_id and retrieved_docs:
+                    # LLM uses 1-based indexing, list is 0-based
+                    if 0 < number <= len(retrieved_docs):
+                        doc = retrieved_docs[number - 1]
+                        doc_id = str(doc.get("_id") or doc.get("id"))
+                        if doc_id:
+                            doc_id = doc_id.replace(".pdf", "")
             else:
-                # Simple format: (doc_id)
-                doc_id = match.group("doc_id_simple")
-                # Assign dummy number 0, will be renumbered anyway
-                number = 0
+                continue
 
             if not doc_id:
                 continue
@@ -94,7 +99,7 @@ class CitationProcessor:
 
         return citation_map
 
-    def renumber_citations(self, text: str, citation_map: Dict[str, int]) -> str:
+    def renumber_citations(self, text: str, citation_map: Dict[str, int], retrieved_docs: List[dict] = None) -> str:
         """Return new text where all citation numbers are normalized.
 
         Nomor di dalam [[N]](...) akan diganti dengan nomor dari citation_map
@@ -105,8 +110,21 @@ class CitationProcessor:
             return text
 
         def _replace(match: re.Match) -> str:
-            doc_id = match.group("doc_id") or match.group("doc_id_simple")
+            doc_id = match.group("doc_id")
+            number_str = match.group("number")
             
+            # If doc_id is missing, try to resolve it using the same logic as extract_citations
+            if not doc_id and number_str and retrieved_docs:
+                try:
+                    number = int(number_str)
+                    if 0 < number <= len(retrieved_docs):
+                        doc = retrieved_docs[number - 1]
+                        doc_id = str(doc.get("_id") or doc.get("id"))
+                        if doc_id:
+                            doc_id = doc_id.replace(".pdf", "")
+                except ValueError:
+                    pass
+
             if not doc_id:
                 return match.group(0)
 
@@ -208,7 +226,7 @@ class CitationProcessor:
         """
 
         # 1. Extract citations from raw text
-        citations = self.extract_citations(llm_output)
+        citations = self.extract_citations(llm_output, retrieved_docs)
 
         # 2. Validate citations against retrieval results
         valid_citations = self.validate_citations(citations, retrieved_docs)
@@ -217,7 +235,7 @@ class CitationProcessor:
         citation_map = self.build_citation_map(valid_citations)
 
         # 4. Renumber citations in text
-        cleaned_content = self.renumber_citations(llm_output, citation_map)
+        cleaned_content = self.renumber_citations(llm_output, citation_map, retrieved_docs)
 
         # 5. Build reference list
         references = self.build_reference_list(citation_map, retrieved_docs)
