@@ -1,6 +1,6 @@
-
 import time
 import json
+from datetime import datetime, timezone
 from src.common.gemini_client import client as gemini_client
 from google.genai import types
 from ..config.llm import MODEL_NAME, CHATBOT_SYSTEM_PROMPT, ANSWERING_AGENT_PROMPT
@@ -30,6 +30,20 @@ def stream_answer_user(context: History, message_id: str, documents: list[dict],
     full_content = ""
     citation_processor = CitationProcessor()
     
+    # Calculate thinking duration once before streaming starts
+    thinking_duration = None
+    try:
+        msg_res = supabase.table("chat").select("thinking_start_time").eq("id", message_id).single().execute()
+        if msg_res.data and msg_res.data.get("thinking_start_time"):
+            start_time_str = msg_res.data.get("thinking_start_time")
+            # Handle ISO format with Z or offset
+            start_time_str = start_time_str.replace('Z', '+00:00')
+            start_time = datetime.fromisoformat(start_time_str)
+            now = datetime.now(timezone.utc)
+            thinking_duration = (now - start_time).total_seconds()
+    except Exception as e:
+        print(f"Error calculating thinking duration: {e}")
+
     try:
         # Generate streaming response
         stream = gemini_client.models.generate_content_stream(
@@ -43,6 +57,7 @@ def stream_answer_user(context: History, message_id: str, documents: list[dict],
                 Retrieved Context:
                 {json.dumps(documents, indent=2) if documents else ""}
                 """,
+                stop_sequences=["Referensi", "Daftar Pustaka", "Sumber:"],
             ),
         )
         
@@ -52,10 +67,15 @@ def stream_answer_user(context: History, message_id: str, documents: list[dict],
                 full_content += chunk.text
                 # Update database with current content
                 try:
-                    supabase.table("chat").update({
+                    update_payload = {
                         "content": full_content,
                         "state": "streaming",
-                    }).eq("id", message_id).execute()
+                    }
+                    # Only update thinking_duration if we calculated it
+                    if thinking_duration is not None:
+                        update_payload["thinking_duration"] = thinking_duration
+                        
+                    supabase.table("chat").update(update_payload).eq("id", message_id).execute()
                 except Exception as db_error:
                     print(f"Error updating streaming content: {str(db_error)}")
                     continue
@@ -204,6 +224,7 @@ def answer_user(history: History, documents: list[dict], serialized_answer_res: 
                 Retrieved Context:
                 {json.dumps(documents, indent=2) if documents else ""}
                 """,
+                stop_sequences=["Referensi", "Daftar Pustaka", "Sumber:"],
             ),
         )
 
