@@ -76,6 +76,12 @@ IMPORTANT:
 - Never make up document IDs or URLs
 - If specific pasal known, mention pasal number in text (not in citation)
 
+# NO BIBLIOGRAPHY / REFERENCE LIST
+- DO NOT generate a "Daftar Pustaka", "Referensi", or "Sumber" section at the end of your answer.
+- The system will automatically generate the reference list based on your inline citations [[N]].
+- Your answer should END after the last paragraph of explanation.
+- Generating a reference list will cause duplication and errors.
+
 # LANGUAGE POLICY
 - Always respond in the SAME LANGUAGE as the user's question
 - Do not translate Indonesian legal terms when answering

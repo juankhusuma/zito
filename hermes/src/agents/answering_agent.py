@@ -5,7 +5,7 @@ from src.common.gemini_client import client as gemini_client
 from google.genai import types
 from ..config.llm import MODEL_NAME, CHATBOT_SYSTEM_PROMPT, ANSWERING_AGENT_PROMPT
 from ..model.search import History, QnAList, Questions
-from src.tools.retrieve_document_metadata import get_document_metadata
+from src.tools.retrieve_document_metadata import get_document_metadata, get_documents_metadata_batch
 from src.common.supabase_client import client as supabase
 from src.utils.citation_processor import CitationProcessor
 
@@ -188,12 +188,9 @@ def answer_user(history: History, documents: list[dict], serialized_answer_res: 
 
         print(id_to_fetch)
         
-        metadata = []
-        for doc_id in id_to_fetch:
-            doc_metadata = get_document_metadata(doc_id)
-            print("@@@@@@@@@@@DOC METADATA", doc_metadata)
-            if doc_metadata:
-                metadata.append(doc_metadata)
+        metadata = get_documents_metadata_batch(id_to_fetch)
+        print("@@@@@@@@@@@DOC METADATA BATCH", len(metadata))
+        
         return stream_answer_user(history, message_id, documents + metadata, serialized_answer_res)
     else:
         res = gemini_client.models.generate_content(
@@ -219,12 +216,8 @@ def answer_user(history: History, documents: list[dict], serialized_answer_res: 
 
         print(id_to_fetch)
         
-        metadata = []
-        for doc_id in id_to_fetch:
-            doc_metadata = get_document_metadata(doc_id)
-            print("@@@@@@@@@@@DOC METADATA", doc_metadata)
-            if doc_metadata:
-                metadata.append(doc_metadata)
+        metadata = get_documents_metadata_batch(id_to_fetch)
+        print("@@@@@@@@@@@DOC METADATA BATCH", len(metadata))
 
         print(metadata)
         

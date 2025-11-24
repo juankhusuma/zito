@@ -28,6 +28,42 @@ def get_document_metadata(id: str):
         "pasal": None  # Ensure it's document metadata, not pasal-specific
     }
 
+def get_documents_metadata_batch(ids: list[str]):
+    if not ids:
+        return []
+    
+    # Normalize IDs
+    normalized_ids = []
+    for id in ids:
+        nid = id.replace("Nomor_", "").replace("Tahun_", "").replace(".pdf", "")
+        nid = nid.split("___")[0]
+        normalized_ids.append(nid)
+    
+    # Remove duplicates
+    normalized_ids = list(set(normalized_ids))
+
+    docs = search_legal_documents({
+        "query": {
+            "terms": {
+                "_id": normalized_ids
+            }
+        },
+        "size": len(normalized_ids)
+    })
+
+    if docs is None or docs.get("hits") is None:
+        return []
+
+    results = []
+    for hit in docs.get("hits"):
+        results.append({
+            "_id": hit.get("id"),
+            "id": hit.get("id"),
+            "source": hit.get("source"),
+            "pasal": None
+        })
+    return results
+
 if __name__ == "__main__":
     import sys
     if len(sys.argv) != 2:
