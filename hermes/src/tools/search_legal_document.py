@@ -109,7 +109,7 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
         Complete Elasticsearch response with hits and aggregations
     """
     
-    url = f"{os.environ.get("ES_BASE_URL", "https://chat.lexin.cs.ui.ac.id/elasticsearch")}/peraturan_indonesia/_search"
+    url = f"{os.environ.get('ES_BASE_URL', 'https://chat.lexin.cs.ui.ac.id/elasticsearch')}/peraturan_indonesia/_search"
     
     auth = get_elasticsearch_auth()
     headers = {"Content-Type": "application/json"}
@@ -117,7 +117,7 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
     # Set defaults
     original_size = search_query.get("size")
     search_query["size"] = search_query.get("size", 10)
-    print(f"📏 Size parameter - original: {original_size}, final: {search_query['size']}")
+
     
     try:
         # Execute the search using requests directly - don't wrap in another "query" object
@@ -136,7 +136,7 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
         )
         
         request_time = time.time() - request_start
-        print(f"📊 Response status code: {response.status_code}")
+
         
         if response.status_code != 200:
             error_msg = f"Elasticsearch returned status code {response.status_code}: {response.text}"
@@ -153,8 +153,7 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
         # Format the response to be more user-friendly
         total_hits = data.get("hits", {}).get("total", {}).get("value", 0)
         max_score = data.get("hits", {}).get("max_score")
-        
-        print(f"📊 Formatting response - total_hits: {total_hits}, max_score: {max_score}")
+
         
         formatted_response = {
             "total_hits": total_hits,
@@ -176,11 +175,9 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
         # Include aggregations if present
         if "aggregations" in data:
             agg_keys = list(data["aggregations"].keys())
-            print(f"📊 Found aggregations: {agg_keys}")
+
             formatted_response["aggregations"] = data["aggregations"]
-        else:
-            print("📊 No aggregations in response")
-            
+
         return formatted_response
         
     except requests.exceptions.Timeout:
@@ -233,7 +230,7 @@ def search_legal_documents_with_fallback(search_query: Dict[str, Any]) -> Dict[s
         return result
     
     total_hits = result.get("total_hits", 0)
-    print(f"📊 Primary search results: {total_hits} hits")
+
     
     if total_hits > 0:
         elapsed = time.time() - start_time
@@ -257,14 +254,11 @@ def search_legal_documents_with_fallback(search_query: Dict[str, Any]) -> Dict[s
                 }
             }
             result = search_legal_documents(fallback_query)
-            
+
             if result.get("total_hits", 0) > 0:
                 elapsed = time.time() - start_time
                 result["fallback_used"] = "relaxed_boolean"
                 return result
-            else:
-        else:
-    else:
     
     # Fallback 2: Try a broader multi-field search if we can extract search terms
     search_terms = _extract_search_terms(original_query)
@@ -295,8 +289,6 @@ def search_legal_documents_with_fallback(search_query: Dict[str, Any]) -> Dict[s
             elapsed = time.time() - start_time
             result["fallback_used"] = "multi_field_fuzzy"
             return result
-        else:
-    else:
     
     # Fallback 3: Very broad search across all text fields
     if search_terms:
@@ -319,12 +311,10 @@ def search_legal_documents_with_fallback(search_query: Dict[str, Any]) -> Dict[s
             elapsed = time.time() - start_time
             result["fallback_used"] = "query_string_broad"
             return result
-        else:
-    else:
     
     # Fallback 4: Get recent documents if all else fails
     size_limit = min(search_query.get("size", 10), 5)
-    print(f"📏 Limiting recent documents to {size_limit} results")
+
     
     fallback_query = {
         "query": {
@@ -392,12 +382,9 @@ def _extract_search_terms(query: Dict[str, Any]) -> List[str]:
             clean_term = obj.strip()
             if not clean_term.lower() in ["dan", "atau", "dengan", "yang", "di", "ke", "dari"]:
                 terms.append(clean_term)
-            else:
-    
     extract_from_dict(query)
     unique_terms = list(set(terms))  # Remove duplicates
-    
-    print(f"📊 Extraction complete: {len(terms)} total terms, {len(unique_terms)} unique terms")
+
     
     return unique_terms
 
@@ -479,7 +466,7 @@ def legal_search_rest_handler(request_body: Dict[str, Any]) -> Dict[str, Any]:
             "query": query,
             "size": request_body.get("size", 10),
         }
-        print(f"📏 Size parameter: {search_params['size']}")
+
         
         # Add optional parameters if present
         optional_params = ["from", "sort", "aggs", "_source"]
@@ -493,10 +480,10 @@ def legal_search_rest_handler(request_body: Dict[str, Any]) -> Dict[str, Any]:
         
         # Execute the search with fallback
         result = search_legal_documents_with_fallback(search_params)
-        
+
         if "error" in result:
-        else:
-        
+            return result
+
         return result
     
     except Exception as e:
@@ -637,14 +624,11 @@ def __main__():
     start_time = time.time()
     results = search_legal_documents(sample_query)
     elapsed = time.time() - start_time
-    
-    print(f"📊 Found {results.get('total_hits', 0)} results")
+
     
     if results.get('hits'):
         first_hit = results.get('hits')[0]
         print(f"🎯 First hit score: {first_hit.get('score')}")
-        print(f"📄 First hit metadata: {json.dumps(first_hit.get('source', {}).get('metadata', {}), indent=2, default=str)}")
-    else:
 
 if __name__ == "__main__":
     __main__()
