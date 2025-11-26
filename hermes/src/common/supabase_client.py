@@ -1,17 +1,19 @@
 from supabase import create_client
 from dotenv import load_dotenv
+from src.utils.logger import HermesLogger
 import os
 import httpx
 
 load_dotenv()
 
-# Configure httpx client with proxy and timeout for ALL Supabase operations
+logger = HermesLogger("supabase")
+
 proxy_url = os.getenv("HTTPS_PROXY") or os.getenv("https_proxy")
 if proxy_url:
-    print(f"INFO: Using proxy for Supabase: {proxy_url}")
+    logger.info("Using proxy for Supabase", proxy_url=proxy_url)
     http_client = httpx.Client(proxy=proxy_url, timeout=30.0)
 else:
-    print("INFO: Using direct connection for Supabase (trust_env)")
+    logger.info("Using direct connection for Supabase")
     http_client = httpx.Client(trust_env=True, timeout=30.0)
 
 # Create client without options parameter (simpler approach)

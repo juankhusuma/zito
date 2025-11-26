@@ -1,8 +1,11 @@
 from datetime import datetime, timezone
 from src.common.supabase_client import client as supabase
+from src.utils.logger import HermesLogger
 from ...agents.title_agent import generate_title
 from ...model.search import History
 from .agent_caller import AgentCaller
+
+logger = HermesLogger("session")
 
 class SessionManager:
     @staticmethod
@@ -12,9 +15,7 @@ class SessionManager:
                 "last_updated_at": datetime.now().isoformat(),
             }).eq("id", session_uid).execute()
 
-            # Record thinking start time when backend processing begins
             backend_thinking_start = datetime.now(timezone.utc).isoformat()
-            print(f"DEBUG: Setting thinking_start_time to: {backend_thinking_start}")
 
             chat_data = {
                 "role": "assistant",
@@ -25,17 +26,15 @@ class SessionManager:
                 "thinking_start_time": backend_thinking_start,
             }
 
-            print(f"DEBUG: Chat data to insert: {chat_data}")
-
             message_ref = (
                 supabase.table("chat")
                 .insert(chat_data)
                 .execute()
             )
-            print(f"DEBUG: Insert result: {message_ref}")
+            logger.debug("Assistant message created", session_uid=session_uid)
             return message_ref
         except Exception as e:
-            print(f"ERROR: Failed to insert assistant message: {e}")
+            logger.error("Failed to create assistant message", error=str(e))
             raise
 
     @staticmethod
@@ -48,8 +47,9 @@ class SessionManager:
                 "title": title.replace("*", "").replace("#", "").replace("`", ""),
                 "last_updated_at": datetime.now().isoformat(),
             }).eq("id", session_uid).execute()
+            logger.debug("Session title generated", session_uid=session_uid)
         except Exception as e:
-            print(f"Failed to generate title: {str(e)}")
+            logger.warning("Failed to generate title", error=str(e))
 
     @staticmethod
     def finalize_message_with_thinking_duration(message_id: str):

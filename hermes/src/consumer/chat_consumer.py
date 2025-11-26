@@ -5,6 +5,7 @@ import asyncio
 import logging
 from dotenv import load_dotenv
 from src.common.supabase_client import client as supabase
+from src.utils.logger import HermesLogger
 from .message_processor.message_handler import MessageHandler
 from .message_processor.session_manager import SessionManager
 from .message_processor.retrieval_manager import RetrievalManager
@@ -12,7 +13,7 @@ from .message_processor.error_handler import ErrorHandler
 from ..model.search import QnAList
 
 load_dotenv()
-logger = logging.getLogger(__name__)
+logger = HermesLogger("consumer")
 
 class ChatConsumer:
     # Store channel as class variable for retry logic
@@ -30,30 +31,23 @@ class ChatConsumer:
         await ChatConsumer._channel.set_qos(prefetch_count=3)  # Allow parallel processing of up to 3 messages
         queue = await ChatConsumer._channel.declare_queue("chat")
         await queue.consume(ChatConsumer.process_message, no_ack=False)
-        print("DEBUG: RabbitMQ consumer started and waiting for messages...", flush=True)
-        import sys
-        sys.stdout.flush()
+        logger.info("RabbitMQ consumer started")
 
-        # Keep the consumer running indefinitely
         try:
-            import asyncio
-            await asyncio.Future()  # Run forever
+            await asyncio.Future()
         except asyncio.CancelledError:
-            print("DEBUG: RabbitMQ consumer shutting down...")
+            logger.info("RabbitMQ consumer shutting down")
             await conn.close()
             raise
 
     @staticmethod
     async def process_message(message):
-        print("DEBUG: process_message called!!!")
         body = json.loads(message.body.decode("utf-8"))
-        print(f"DEBUG: Message body: {body}")
         message_ref = None
-        
-        # Track retry count in message body
+
         retry_count = body.get('__retry_count', 0)
         MAX_RETRIES = 3
-        print(f"DEBUG: Retry count: {retry_count}/{MAX_RETRIES}")
+        logger.debug("Processing message", session_uid=body.get("session_uid"), retry=f"{retry_count}/{MAX_RETRIES}")
 
         try:
             # Wrap entire processing in 5-minute timeout
@@ -68,53 +62,36 @@ class ChatConsumer:
                 if is_new:
                     SessionManager.handle_new_chat(history, body["session_uid"])
 
-                # Use message_id from Chronos if available, otherwise create new message
                 message_id = body.get("message_id")
-                if message_id:
-                    print(f"DEBUG: Using existing message_id from Chronos: {message_id}")
-                    message_ref = {"data": [{"id": message_id}]}  # Mock structure for compatibility
-                else:
-                    # Fallback: create message if not provided (backward compatibility)
-                    print(f"DEBUG: No message_id provided, creating new message for session: {body['session_uid']}")
+                if not message_id:
                     message_ref = SessionManager.init_message(
                         body["session_uid"], body["user_uid"]
                     )
-                    # Handle message_ref structure which might be a dict or object
                     if isinstance(message_ref, dict) and "data" in message_ref and message_ref["data"]:
                         message_id = message_ref["data"][0]["id"]
                     elif hasattr(message_ref, "data") and message_ref.data:
                         message_id = message_ref.data[0]["id"]
                     else:
                         raise Exception("Failed to get message_id from init_message response")
-                        
-                    print(f"DEBUG: Created new message_id: {message_id}")
 
-                print(f"DEBUG: Calling evaluate_question...")
+                logger.debug("Evaluating question", message_id=message_id)
                 eval_res = MessageHandler.evaluate_question(history)
-                print(f"DEBUG: evaluate_question done")
 
                 documents = []
                 serialized_answer_res = QnAList(is_sufficient=False, answers=[])
 
                 if not eval_res.is_sufficient or True:
-                    print(f"DEBUG: Calling perform_retrieval...")
+                    logger.debug("Starting retrieval", message_id=message_id)
                     documents = RetrievalManager.perform_retrieval(eval_res, message_id)
-                    print(f"DEBUG: perform_retrieval done, got {len(documents)} documents")
+                    logger.debug("Retrieval complete", documents=len(documents))
 
-                    print(f"DEBUG: Calling generate_planned_answers...")
                     serialized_answer_res = MessageHandler.generate_planned_answers(history, documents, eval_res)
-                    print(f"DEBUG: generate_planned_answers done")
 
-                print(f"DEBUG: Calling generate_final_response...")
                 MessageHandler.generate_final_response(history, documents, serialized_answer_res, message_id)
-                print(f"DEBUG: generate_final_response done")
-
-                # Store thinking duration after processing is complete
                 SessionManager.finalize_message_with_thinking_duration(message_id)
 
-                # Only ACK after successful processing
                 await message.ack()
-                print(f"DEBUG: Message ACK'd successfully for session: {body['session_uid']}")
+                logger.info("Message processed successfully", session_uid=body['session_uid'])
 
         except asyncio.TimeoutError:
             logger.error(f"Processing timeout (5 min) for session {body.get('session_uid')}")

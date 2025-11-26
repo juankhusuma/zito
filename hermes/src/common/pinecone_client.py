@@ -1,14 +1,15 @@
 from pinecone import Pinecone
 from dotenv import load_dotenv
+from src.utils.logger import HermesLogger
 import os
 load_dotenv()
 
-# Use proxy for external API access
-# Try PINECONE_PROXY_URL first, fallback to HTTPS_PROXY (same as Supabase pattern)
+logger = HermesLogger("pinecone")
+
 proxy_url = os.getenv("PINECONE_PROXY_URL") or os.getenv("HTTPS_PROXY")
 
 if proxy_url:
-    print(f"INFO: Using proxy for Pinecone: {proxy_url}")
+    logger.info("Using proxy for Pinecone", proxy_url=proxy_url)
 
 # Initialize Pinecone clients
 _pc = None

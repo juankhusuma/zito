@@ -8,6 +8,9 @@ from ..model.search import History, QnAList, Questions
 from src.tools.retrieve_document_metadata import get_document_metadata, get_documents_metadata_batch
 from src.common.supabase_client import client as supabase
 from src.utils.citation_processor import CitationProcessor
+from src.utils.logger import HermesLogger
+
+logger = HermesLogger("answer")
 
 def answer_generated_questions(history: History, documents: list[dict], serilized_check_res: Questions):
     time.sleep(1)
@@ -22,7 +25,7 @@ def answer_generated_questions(history: History, documents: list[dict], serilize
             ),
         )
     serialized_answer_res = QnAList.model_validate(answer_res.parsed)
-    print(f"Planned Answer: {serialized_answer_res}")
+    logger.debug("Planned answer generated", answer_count=len(serialized_answer_res.answers))
     return serialized_answer_res
 
 def stream_answer_user(context: History, message_id: str, documents: list[dict], serialized_answer_res: QnAList):
@@ -42,7 +45,7 @@ def stream_answer_user(context: History, message_id: str, documents: list[dict],
             now = datetime.now(timezone.utc)
             thinking_duration = (now - start_time).total_seconds()
     except Exception as e:
-        print(f"Error calculating thinking duration: {e}")
+        logger.warning("Failed to calculate thinking duration", error=str(e))
 
     try:
         # Generate streaming response
@@ -81,7 +84,7 @@ def stream_answer_user(context: History, message_id: str, documents: list[dict],
 
                     supabase.table("chat").update(update_payload).eq("id", message_id).execute()
                 except Exception as db_error:
-                    print(f"Error updating streaming content: {str(db_error)}")
+                    logger.error("Failed to update streaming content", error=str(db_error))
                     continue
 
         # Final update with complete state
@@ -98,15 +101,17 @@ def stream_answer_user(context: History, message_id: str, documents: list[dict],
             referenced_doc_ids = [ref.get("doc_id") for ref in references if isinstance(ref, dict)]
             unique_referenced_doc_ids = sorted({doc_id for doc_id in referenced_doc_ids if doc_id})
 
-            print(
-                "[Citation] Final processing:",
-                f"total_citations={total_citations}",
-                f"references_count={len(references)}",
-                f"referenced_doc_ids={unique_referenced_doc_ids}",
+            citation_logger = HermesLogger("citation")
+            citation_logger.info(
+                "Citation processing complete",
+                total_citations=total_citations,
+                valid_references=len(references),
+                doc_ids=",".join(unique_referenced_doc_ids) if unique_referenced_doc_ids else "none"
             )
 
         except Exception as process_error:
-            print(f"[Citation] Citation processing error: {str(process_error)}")
+            citation_logger = HermesLogger("citation")
+            citation_logger.error("Citation processing failed", error=str(process_error))
             final_content = full_content
             references = []
 
@@ -123,9 +128,9 @@ def stream_answer_user(context: History, message_id: str, documents: list[dict],
                 self.text = text
         
         return MockResponse(full_content)
-        
+
     except Exception as e:
-        print(f"Streaming error: {str(e)}")
+        logger.error("Streaming failed, falling back to regular generation", error=str(e))
         # Fallback to regular generation
         response = gemini_client.models.generate_content(
             model=MODEL_NAME,
@@ -167,7 +172,6 @@ def answer_user(history: History, documents: list[dict], serialized_answer_res: 
             if doc["_index"] == "kuhp":
                 doc["_id"] = "UU_1_2023"    
         if doc.get("id") is not None:
-            print(doc)
             if "___" in doc["id"]:
                 doc["pasal"] = doc["id"].split("___")[1]
                 doc["id"] = doc["id"].split("___")[0]
@@ -193,7 +197,7 @@ def answer_user(history: History, documents: list[dict], serialized_answer_res: 
                     })
                 # Note: DO NOT override doc["id"] here - keep the original ID!
 
-    print(f"Need to fetch metadata for: {need_fetch_metadata} $$$$$$$$$$$$$$$")
+    logger.debug("Fetching metadata", count=len(need_fetch_metadata))
 
     # Use streaming generation
     if message_id:
@@ -204,11 +208,9 @@ def answer_user(history: History, documents: list[dict], serialized_answer_res: 
             if doc["_id"] not in id_to_fetch:
                 id_to_fetch.append(doc["_id"])
 
-        print(id_to_fetch)
-        
         metadata = get_documents_metadata_batch(id_to_fetch)
-        print("@@@@@@@@@@@DOC METADATA BATCH", len(metadata))
-        
+        logger.debug("Metadata batch fetched", count=len(metadata))
+
         return stream_answer_user(history, message_id, documents + metadata, serialized_answer_res)
     else:
         res = gemini_client.models.generate_content(
@@ -233,13 +235,9 @@ def answer_user(history: History, documents: list[dict], serialized_answer_res: 
             if doc["_id"] not in id_to_fetch:
                 id_to_fetch.append(doc["_id"])
 
-        print(id_to_fetch)
-        
         metadata = get_documents_metadata_batch(id_to_fetch)
-        print("@@@@@@@@@@@DOC METADATA BATCH", len(metadata))
+        logger.debug("Metadata batch fetched", count=len(metadata))
 
-        print(metadata)
-        
         # Update the database with the final content
         supabase.table("chat").update({
             "content": res.text,

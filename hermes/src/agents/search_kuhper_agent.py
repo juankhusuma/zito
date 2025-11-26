@@ -1,4 +1,6 @@
 import time
+from src.utils.logger import HermesLogger
+
 import json
 from concurrent.futures import ThreadPoolExecutor
 from src.common.gemini_client import client as gemini_client
@@ -6,12 +8,14 @@ from google.genai import types
 from ..config.llm import SEARCH_KUHPER_AGENT_PROMPT, REWRITE_PROMPT
 from ..tools.kuhper_search import kuhper_document_search, search_dense_kuhper_documents
 
+logger = HermesLogger("kuhper_agent")
+
 def evaluate_es_query(query: dict):
     try:
         documents = kuhper_document_search(query=query)
         return (documents, None)
     except Exception as e:
-        print(f"Error searching legal documents: {str(e)}")
+        logger.error("Search failed", error=str(e))
         return (None, str(e))
 
 def generate_and_execute_es_query_kuhper(questions: list[str]):
@@ -30,7 +34,7 @@ def generate_and_execute_es_query_kuhper(questions: list[str]):
 
         # Pinecone dense search (use parallel execution for better performance)
         try:
-            print(f"DEBUG: Calling Pinecone dense search for {len(questions)} questions in PARALLEL...")
+            pass  # Removed DEBUG log
             start_time = time.time()
 
             # Use ThreadPoolExecutor to parallelize Pinecone queries
@@ -58,10 +62,10 @@ def generate_and_execute_es_query_kuhper(questions: list[str]):
                 doc["metadata"]["_type"] = "kuhper"
 
             elapsed = time.time() - start_time
-            print(f"DEBUG: Pinecone PARALLEL search returned {len(dense_documents)} documents in {elapsed:.2f}s")
+            logger.debug("Pinecone search complete", questions=len(questions), documents=len(dense_documents), duration_ms=int(elapsed*1000))
         except Exception as e:
-            print(f"WARNING: Pinecone dense search failed: {e}")
-            print(f"WARNING: Falling back to ES-only mode")
+            logger.warning("Pinecone search failed", error=str(e))
+            logger.warning("Falling back to ES-only mode")
             dense_documents = []
 
         if len(documents) == 0:

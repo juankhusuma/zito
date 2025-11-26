@@ -1,48 +1,35 @@
 from concurrent.futures import ThreadPoolExecutor
 from src.common.supabase_client import client as supabase
+from src.utils.logger import HermesLogger
 from ...model.search import Questions
 from ...retrieval.retrieval_context import RetrievalContext
 from ...retrieval.retrieval_factory import get_retrieval_strategy
 from .agent_caller import AgentCaller
-# DISABLED: KUHP index does not exist in Elasticsearch yet
-# TODO: Re-enable after KUHP documents are indexed
-# from ...retrieval.kuhp_retrieval import KuhpRetrievalStrategy
 from ...retrieval.kuhper_retrieval import KuhperRetrievalStrategy
 from ...retrieval.legal_document_retrieval import LegalDocumentRetrievalStrategy
 from ...retrieval.undang_undang_retrieval import UndangUndangRetrievalStrategy
 from ...retrieval.perpres_retrieval import PerpresRetrievalStrategy
 
+logger = HermesLogger("retrieval")
+
 class RetrievalManager:
     @staticmethod
     def set_search_state(message_id: str):
         try:
-            print(f"DEBUG: Updating search state for message_id: {message_id}")
             supabase.table("chat").update({"state": "searching"}).eq("id", message_id).execute()
-            print(f"DEBUG: Search state updated successfully")
+            logger.debug("Search state updated", message_id=message_id)
         except Exception as e:
-            # Don't let state update failure block the entire retrieval process
-            print(f"WARNING: Failed to update search state for {message_id}: {e}")
-            print("WARNING: Continuing with retrieval anyway...")
+            logger.warning("Failed to update search state", message_id=message_id, error=str(e))
 
     @staticmethod
     def perform_retrieval(eval_res: Questions, message_id: str) -> list[dict]:
-        print("DEBUG: perform_retrieval started")
         RetrievalManager.set_search_state(message_id)
         try:
-            # retrieval_strategy = get_retrieval_strategy(eval_res.classification)
-            # retrieval_context = RetrievalContext(retrieval_strategy)
-            print("DEBUG: Initializing retrieval strategies...")
             uu_retrieval = UndangUndangRetrievalStrategy()
             kuhper_retrieval = KuhperRetrievalStrategy()
-            # DISABLED: KUHP index does not exist in Elasticsearch yet
-            # TODO: Re-enable after KUHP documents are indexed
-            # kuhp_retrieval = KuhpRetrievalStrategy()
-            legal_doc_retrieval = LegalDocumentRetrievalStrategy()  # ✅ RE-ENABLED: peraturan_indonesia index now exists
-            perpres_retrieval = PerpresRetrievalStrategy()  # ✅ NEW: perpres index for presidential regulations
-            print("DEBUG: Strategies initialized")
-
-            # Parallelize all five index searches for improved speed
-            print("DEBUG: Calling ALL retrievals in PARALLEL...")
+            legal_doc_retrieval = LegalDocumentRetrievalStrategy()
+            perpres_retrieval = PerpresRetrievalStrategy()
+            logger.debug("Retrieval strategies initialized")
 
             # Define wrapper functions to avoid lambda closure issues
             def call_uu_retrieval():
@@ -110,20 +97,19 @@ class RetrievalManager:
                 legal_doc_documents = legal_doc_future.result() or []
                 perpres_documents = perpres_future.result() or []
 
-            print(f"DEBUG: UU retrieval done, got {len(uu_documents)} documents")
-            print(f"DEBUG: KUHPER retrieval done, got {len(kuhper_documents)} documents")
-            print(f"DEBUG: KUHP retrieval done, got {len(kuhp_documents)} documents")
-            print(f"DEBUG: Legal Doc retrieval done, got {len(legal_doc_documents)} documents")
-            print(f"DEBUG: Perpres retrieval done, got {len(perpres_documents)} documents")
-
-            # Combine results from all indices
-            print("DEBUG: Combining results...")
             all_documents = uu_documents + kuhper_documents + kuhp_documents + legal_doc_documents + perpres_documents
-            print(f"DEBUG: perform_retrieval done, returning {len(all_documents)} total documents")
+            logger.info(
+                "Retrieval complete",
+                total=len(all_documents),
+                uu=len(uu_documents),
+                kuhper=len(kuhper_documents),
+                kuhp=len(kuhp_documents),
+                legal_doc=len(legal_doc_documents),
+                perpres=len(perpres_documents)
+            )
             return all_documents if all_documents else []
         except Exception as e:
-            print(f"DEBUG: perform_retrieval exception: {e}")
-            print(f"Search failed: {e}")
+            logger.error("Retrieval failed", error=str(e))
             import traceback
             traceback.print_exc()
             return []

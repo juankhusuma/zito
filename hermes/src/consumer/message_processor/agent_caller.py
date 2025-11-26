@@ -1,5 +1,8 @@
 import time
 import traceback
+from src.utils.logger import HermesLogger
+
+logger = HermesLogger("agent_caller")
 
 class AgentCaller:
     @staticmethod
@@ -16,12 +19,16 @@ class AgentCaller:
                 return func(*args, **kwargs)
             except Exception as e:
                 if attempt == max_attempts - 1:
-                    print(f"Final attempt failed for {func.__name__}: {str(e)}")
+                    logger.error("All retry attempts failed", func=func.__name__, error=str(e))
                     raise e
 
                 delay = min(base_delay * (2**attempt), max_delay)
-                print(
-                    f"Attempt {attempt + 1} failed for {func.__name__}: {str(e)}. Retrying in {delay}s..."
+                logger.warning(
+                    "Agent call failed, retrying",
+                    func=func.__name__,
+                    attempt=f"{attempt + 1}/{max_attempts}",
+                    retry_delay_s=delay,
+                    error=str(e)
                 )
                 time.sleep(delay)
 
@@ -32,6 +39,5 @@ class AgentCaller:
         try:
             return agent_func(*args, **kwargs)
         except Exception as e:
-            print(f"{agent_func.__name__} error: {str(e)}")
-            print(f"Traceback: {traceback.format_exc()}")
+            logger.error("Agent call failed", func=agent_func.__name__, error=str(e))
             raise e

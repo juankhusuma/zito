@@ -3,16 +3,19 @@
 import time
 import json
 from src.common.gemini_client import client as gemini_client
+from src.utils.logger import HermesLogger
 from google.genai import types
 from ..config.llm import MODEL_NAME, SEARCH_AGENT_PROMPT, REWRITE_PROMPT
 from ..tools.search_legal_document import legal_document_search
+
+logger = HermesLogger("search_agent")
 
 def evaluate_es_query(query: dict):
     try:
         documents = legal_document_search(query=query)
         return (documents, None)
     except Exception as e:
-        print(f"Error searching legal documents: {str(e)}")
+        logger.error("Legal document search failed", error=str(e))
         return (None, str(e))
 
 def generate_and_execute_es_query(questions: list[str]):
@@ -43,7 +46,7 @@ def generate_and_execute_es_query(questions: list[str]):
         try:
             query_json = json.loads(es_query_res.text)
         except json.JSONDecodeError:
-            print("Error decoding JSON response from Gemini")
+            logger.warning("Failed to decode Gemini JSON response")
             continue
         documents, error = evaluate_es_query(query_json)
         if len(documents) == 0:

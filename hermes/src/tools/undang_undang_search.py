@@ -6,35 +6,29 @@ import requests
 from typing import Dict, Any, List
 from src.common.gemini_client import client as gemini_client
 from src.common.pinecone_client import undang_undang_index
+from src.utils.logger import HermesLogger
 from dotenv import load_dotenv
 load_dotenv()
 
+logger = HermesLogger("uu_search")
+
 def undang_undang_document_search(query: dict) -> List[Dict[str, Any]]:
-    print("🔍 Starting legal_document_search...")
-    print(f"📝 Input query: {json.dumps(query, default=str, indent=2)}")
-    
     start_time = time.time()
     result = search_undang_undang_documents_with_fallback(query)
     elapsed = time.time() - start_time
-    
-    print(f"⏱️ legal_document_search completed in {elapsed:.2f} seconds")
-    
+
     if "error" in result:
-        print(f"❌ Search error: {result['error']}")
+        logger.error("UU search failed", error=result['error'])
         return []
-    
+
     hits = result.get("hits", [])
-    print(f"✅ Returning {len(hits)} search results")
+    logger.info("UU search complete", hits=len(hits), duration_ms=int(elapsed * 1000))
     return hits
 
 def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
-    print("🚀 Starting search_legal_documents...")
-    print(f"📋 Raw search query: {json.dumps(search_query, default=str, indent=2)}")
     
     url = f"{os.environ.get("ES_BASE_URL", "https://chat.lexin.cs.ui.ac.id/elasticsearch")}/undang-undang/_search"
-    print(f"🌐 Using Elasticsearch URL: {url}")
     
-    print("🔐 Getting authentication...")
     headers = {"Content-Type": "application/json"}
     
     # Set defaults
@@ -46,7 +40,6 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
         # Execute the search using requests directly - don't wrap in another "query" object
         request_body = search_query
         print(f"📤 Sending request to Elasticsearch...")
-        print(f"📄 Request body: {json.dumps(request_body, indent=2)}")
         
         request_start = time.time()
         print("⏳ Making HTTP request to Elasticsearch...")
@@ -60,19 +53,15 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
         )
         
         request_time = time.time() - request_start
-        print(f"📡 HTTP request completed in {request_time:.2f} seconds")
         print(f"📊 Response status code: {response.status_code}")
         
         if response.status_code != 200:
             error_msg = f"Elasticsearch returned status code {response.status_code}: {response.text}"
-            print(f"❌ HTTP Error: {error_msg}")
             return {
                 "error": error_msg,
                 "message": "Failed to execute search query. Please check your query syntax."
             }
         
-        print("✅ Received successful response from Elasticsearch")
-        print("🔄 Parsing JSON response...")
         
         data = response.json()
         print(f"📈 Raw response total hits: {data.get('hits', {}).get('total', {}).get('value', 0)}")
@@ -92,10 +81,8 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
         
         # Process hits
         hits_data = data.get("hits", {}).get("hits", [])
-        print(f"🔄 Processing {len(hits_data)} hits...")
         
         for i, hit in enumerate(hits_data):
-            print(f"  📝 Processing hit {i+1}: ID={hit.get('_id')}, Score={hit.get('_score')}")
             formatted_hit = {
                 "score": hit.get("_score"),
                 "id": hit.get("_id"),
@@ -111,7 +98,6 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
         else:
             print("📊 No aggregations in response")
             
-        print(f"✅ Successfully formatted response with {len(formatted_response['hits'])} hits")
         return formatted_response
         
     except requests.exceptions.Timeout:
@@ -138,7 +124,6 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as e:
         error_msg = f"Failed to execute search query: {str(e)}"
         print(f"💥 Unexpected error: {error_msg}")
-        print(f"🔍 Exception type: {type(e).__name__}")
         return {
             "error": error_msg,
             "message": "Failed to execute search query. Please check your query syntax."
@@ -150,7 +135,6 @@ def search_dense_undang_undang_documents(query: str, top_k: int = 10) -> List[Di
         contents=[query]
     )
     embeddings = [float(x) for x in embed_res.embeddings[0].values]
-    print(f"🔍 Embedding generated for query: {embeddings[:5]}... (total {len(embeddings)} dimensions)")
 
     print(f"📦 Searching Pinecone index for top {top_k} documents...")
     response = undang_undang_index.query(
@@ -164,18 +148,14 @@ def search_dense_undang_undang_documents(query: str, top_k: int = 10) -> List[Di
     return response.to_dict()
 
 def search_undang_undang_documents_with_fallback(search_query: Dict[str, Any]) -> Dict[str, Any]:
-    print("🔄 Starting search_legal_documents_with_fallback...")
-    print(f"📋 Initial search query: {json.dumps(search_query, default=str, indent=2)}")
     
     start_time = time.time()
     
     # Try the original query first
-    print("1️⃣ Attempting primary search...")
     result = search_legal_documents(search_query)
     
     # If we got results or there was an error, return as is
     if "error" in result:
-        print(f"❌ Primary search failed with error: {result['error']}")
         return result
     
     total_hits = result.get("total_hits", 0)
@@ -183,17 +163,13 @@ def search_undang_undang_documents_with_fallback(search_query: Dict[str, Any]) -
     
     if total_hits > 0:
         elapsed = time.time() - start_time
-        print(f"✅ Primary search successful in {elapsed:.2f} seconds")
         return result
     
-    print("⚠️ No results found in primary search, starting fallback strategies...")
     
     # Extract the original query for fallback modifications
     original_query = search_query.get("query", {})
-    print(f"🔍 Extracted original query for fallback: {json.dumps(original_query, default=str)}")
     
     # Fallback 1: If it's a bool query, try with just the "should" clauses and lower minimum_should_match
-    print("2️⃣ Checking for boolean query fallback...")
     fallback_query = {
         "query": {
             "match": {
@@ -202,25 +178,20 @@ def search_undang_undang_documents_with_fallback(search_query: Dict[str, Any]) -
             "size": search_query.get("size", 10),
         }
     }
-    print(f"🔄 Fallback query: {json.dumps(fallback_query, default=str, indent=2)}")
 
     # Execute the fallback search
     fallback_result = search_legal_documents(fallback_query)
     if "error" in fallback_result:
-        print(f"❌ Fallback search failed with error: {fallback_result['error']}")
         return fallback_result
     fallback_hits = fallback_result.get("total_hits", 0)
     print(f"📊 Fallback search results: {fallback_hits} hits")
     if fallback_hits > 0:
         elapsed = time.time() - start_time
-        print(f"✅ Fallback search successful in {elapsed:.2f} seconds")
         return fallback_result
     
-    print("⚠️ No results found in fallback search, trying search term extraction...")
 
 
 def _extract_search_terms(query: Dict[str, Any]) -> List[str]:
-    print("🔍 Starting search term extraction...")
     print(f"📋 Input query for extraction: {json.dumps(query, default=str)}")
     
     terms = []
@@ -235,13 +206,10 @@ def _extract_search_terms(query: Dict[str, Any]) -> List[str]:
                 
                 if key in ["query", "match", "match_phrase", "term"]:
                     if isinstance(value, str):
-                        print(f"    ✅ Found string term: '{value}'")
                         terms.append(value)
                     elif isinstance(value, dict):
-                        print(f"    🔄 Found dict, recursing...")
                         extract_from_dict(value, current_path)
                 elif isinstance(value, (dict, list)):
-                    print(f"    🔄 Found {type(value).__name__}, recursing...")
                     extract_from_dict(value, current_path)
         elif isinstance(obj, list):
             print(f"  📋 Processing list with {len(obj)} items")
@@ -252,15 +220,12 @@ def _extract_search_terms(query: Dict[str, Any]) -> List[str]:
             # Only add meaningful strings
             clean_term = obj.strip()
             if not clean_term.lower() in ["dan", "atau", "dengan", "yang", "di", "ke", "dari"]:
-                print(f"  ✅ Found meaningful string term: '{clean_term}'")
                 terms.append(clean_term)
             else:
-                print(f"  ⚠️ Skipping common word: '{clean_term}'")
     
     extract_from_dict(query)
     unique_terms = list(set(terms))  # Remove duplicates
     
     print(f"📊 Extraction complete: {len(terms)} total terms, {len(unique_terms)} unique terms")
-    print(f"📝 Final unique terms: {unique_terms}")
     
     return unique_terms

@@ -5,36 +5,34 @@ import requests
 from typing import Dict, Any, List
 from src.common.gemini_client import client as gemini_client
 from src.common.pinecone_client import perpres_index
+from src.utils.logger import HermesLogger
 from dotenv import load_dotenv
 load_dotenv()
 
+logger = HermesLogger("perpres_search")
+
 def perpres_document_search(query: dict) -> List[Dict[str, Any]]:
-    print("🔍 Starting perpres_document_search...")
-    print(f"📝 Input query: {json.dumps(query, default=str, indent=2)}")
-    
+    logger.debug("Starting Perpres search")
+
     start_time = time.time()
     result = search_perpres_documents_with_fallback(query)
     elapsed = time.time() - start_time
-    
-    print(f"⏱️ perpres_document_search completed in {elapsed:.2f} seconds")
-    
+
     if "error" in result:
-        print(f"❌ Search error: {result['error']}")
+        logger.error("Search failed", error=result['error'])
         return []
-    
+
     hits = result.get("hits", [])
-    print(f"✅ Returning {len(hits)} search results")
+    logger.info("Search complete", hits=len(hits), duration_ms=int(elapsed * 1000))
     return hits
 
 def search_perpres_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
-    print("🚀 Starting search_perpres_documents...")
-    
     url = f"{os.environ.get('ES_BASE_URL', 'https://chat.lexin.cs.ui.ac.id/elasticsearch')}/perpres/_search"
-    print(f"🌐 Using Elasticsearch URL: {url}")
-    
+    logger.debug("Executing Elasticsearch query", url=url)
+
     headers = {"Content-Type": "application/json"}
     search_query["size"] = search_query.get("size", 10)
-    
+
     try:
         response = requests.post(
             url=url,
@@ -43,19 +41,19 @@ def search_perpres_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
             auth=("elastic", "password"),
             timeout=30
         )
-        
+
         if response.status_code != 200:
-            error_msg = f"Elasticsearch returned status code {response.status_code}: {response.text}"
-            print(f"❌ HTTP Error: {error_msg}")
+            error_msg = f"Elasticsearch returned status code {response.status_code}"
+            logger.error("Elasticsearch request failed", status_code=response.status_code)
             return {"error": error_msg, "message": "Failed to execute search query."}
-        
+
         data = response.json()
         formatted_response = {
             "total_hits": data.get("hits", {}).get("total", {}).get("value", 0),
             "max_score": data.get("hits", {}).get("max_score"),
             "hits": []
         }
-        
+
         for hit in data.get("hits", {}).get("hits", []):
             formatted_hit = {
                 "score": hit.get("_score"),
@@ -63,27 +61,20 @@ def search_perpres_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
                 "source": hit.get("_source")
             }
             formatted_response["hits"].append(formatted_hit)
-        
-        print(f"✅ Successfully retrieved {formatted_response['total_hits']} perpres documents")
+
+        logger.debug("Elasticsearch query successful", total_hits=formatted_response['total_hits'])
         return formatted_response
-        
+
     except Exception as e:
-        error_msg = f"Error executing perpres search: {str(e)}"
-        print(f"❌ {error_msg}")
-        return {"error": error_msg}
+        logger.error("Elasticsearch query failed", error=str(e))
+        return {"error": str(e)}
 
 def search_perpres_documents_with_fallback(original_query: Dict[str, Any]) -> Dict[str, Any]:
-    print("🔄 Starting search with fallback for perpres...")
-    start_time = time.time()
-    
-    # Try original query first
     result = search_perpres_documents(original_query)
     if "error" not in result and result.get("total_hits", 0) > 0:
-        print(f"✅ Original query successful")
         return result
-    
-    # Fallback: simple match query
-    print("⚠️ Original query returned no results, trying fallback...")
+
+    logger.warning("Original query returned no results, trying fallback")
     fallback_query = {
         "query": {
             "multi_match": {
@@ -93,7 +84,7 @@ def search_perpres_documents_with_fallback(original_query: Dict[str, Any]) -> Di
         },
         "size": original_query.get("size", 10)
     }
-    
+
     return search_perpres_documents(fallback_query)
 
 def _extract_search_terms(query: Dict[str, Any]) -> List[str]:
@@ -121,23 +112,21 @@ def _extract_search_terms(query: Dict[str, Any]) -> List[str]:
     return list(set(terms))
 
 def search_dense_perpres_documents(query: str, k: int = 5) -> List[Dict[str, Any]]:
-    print(f"🔍 Pinecone dense search for perpres: '{query}' (k={k})")
-    
+    logger.debug("Starting Pinecone dense search", k=k)
+
     try:
-        # Generate embedding using Gemini
         res = gemini_client.models.embed_content(
             model="text-embedding-004",
             contents=query
         )
         query_embedding = res.embeddings[0].values
-        
-        # Search Pinecone
+
         results = perpres_index.query(
             vector=query_embedding,
             top_k=k,
             include_metadata=True
         )
-        
+
         documents = []
         for match in results.get('matches', []):
             documents.append({
@@ -145,10 +134,10 @@ def search_dense_perpres_documents(query: str, k: int = 5) -> List[Dict[str, Any
                 "score": match.get('score'),
                 "source": match.get('metadata', {})
             })
-        
-        print(f"✅ Pinecone perpres search returned {len(documents)} documents")
+
+        logger.debug("Pinecone search complete", documents=len(documents))
         return documents
-        
+
     except Exception as e:
-        print(f"❌ Pinecone perpres search failed: {e}")
+        logger.error("Pinecone search failed", error=str(e))
         return []

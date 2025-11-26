@@ -1,4 +1,6 @@
 
+from src.utils.logger import HermesLogger
+
 
 import time
 import json
@@ -7,12 +9,14 @@ from google.genai import types
 from ..config.llm import SEARCH_KUHP_AGENT_PROMPT, REWRITE_PROMPT
 from ..tools.kuhp_search import kuhp_document_search as legal_document_search, search_dense_kuhp_documents
 
+logger = HermesLogger("kuhp_agent")
+
 def evaluate_es_query(query: dict):
     try:
         documents = legal_document_search(query=query)
         return (documents, None)
     except Exception as e:
-        print(f"Error searching legal documents: {str(e)}")
+        logger.error("Search failed", error=str(e))
         return (None, str(e))
 
 def generate_and_execute_es_query_kuhp(questions: list[str]):
