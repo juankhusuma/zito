@@ -122,11 +122,9 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
     try:
         # Execute the search using requests directly - don't wrap in another "query" object
         request_body = search_query
-        print(f"📤 Sending request to Elasticsearch...")
-        
+
         request_start = time.time()
-        print("⏳ Making HTTP request to Elasticsearch...")
-        
+
         response = requests.post(
             url=url,
             auth=auth,
@@ -134,21 +132,18 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
             json=request_body,
             timeout=30,
         )
-        
+
         request_time = time.time() - request_start
 
-        
         if response.status_code != 200:
             error_msg = f"Elasticsearch returned status code {response.status_code}: {response.text}"
+            logger.error("Elasticsearch request failed", status_code=response.status_code)
             return {
                 "error": error_msg,
                 "message": "Failed to execute search query. Please check your query syntax."
             }
-        
-        
+
         data = response.json()
-        print(f"📈 Raw response total hits: {data.get('hits', {}).get('total', {}).get('value', 0)}")
-        print(f"🎯 Raw response max score: {data.get('hits', {}).get('max_score')}")
         
         # Format the response to be more user-friendly
         total_hits = data.get("hits", {}).get("total", {}).get("value", 0)
@@ -182,28 +177,28 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
         
     except requests.exceptions.Timeout:
         error_msg = "Elasticsearch request timed out after 30 seconds"
-        print(f"⏰ Timeout error: {error_msg}")
+        logger.warning("Elasticsearch timeout")
         return {
             "error": error_msg,
             "message": "Search request timed out. Please try again or refine your query."
         }
     except requests.exceptions.ConnectionError as e:
         error_msg = f"Failed to connect to Elasticsearch: {str(e)}"
-        print(f"🔌 Connection error: {error_msg}")
+        logger.error("Elasticsearch connection failed", error=str(e))
         return {
             "error": error_msg,
             "message": "Unable to connect to search service. Please try again later."
         }
     except json.JSONDecodeError as e:
         error_msg = f"Failed to parse Elasticsearch response: {str(e)}"
-        print(f"🔧 JSON parsing error: {error_msg}")
+        logger.error("JSON parsing failed", error=str(e))
         return {
             "error": error_msg,
             "message": "Invalid response from search service."
         }
     except Exception as e:
         error_msg = f"Failed to execute search query: {str(e)}"
-        print(f"💥 Unexpected error: {error_msg}")
+        logger.error("Unexpected search error", error=str(e))
         return {
             "error": error_msg,
             "message": "Failed to execute search query. Please check your query syntax."
@@ -353,18 +348,13 @@ def _extract_search_terms(query: Dict[str, Any]) -> List[str]:
     Returns:
         List of extracted search terms
     """
-    print(f"📋 Input query for extraction: {json.dumps(query, default=str)}")
-    
     terms = []
-    
+
     def extract_from_dict(obj, path=""):
-        print(f"  🔎 Examining object at path '{path}': {type(obj).__name__}")
-        
         if isinstance(obj, dict):
             for key, value in obj.items():
                 current_path = f"{path}.{key}" if path else key
-                print(f"    🔑 Processing key '{key}' at path '{current_path}'")
-                
+
                 if key in ["query", "match", "match_phrase", "term"]:
                     if isinstance(value, str):
                         terms.append(value)
@@ -373,7 +363,6 @@ def _extract_search_terms(query: Dict[str, Any]) -> List[str]:
                 elif isinstance(value, (dict, list)):
                     extract_from_dict(value, current_path)
         elif isinstance(obj, list):
-            print(f"  📋 Processing list with {len(obj)} items")
             for i, item in enumerate(obj):
                 item_path = f"{path}[{i}]"
                 extract_from_dict(item, item_path)
@@ -385,7 +374,6 @@ def _extract_search_terms(query: Dict[str, Any]) -> List[str]:
     extract_from_dict(query)
     unique_terms = list(set(terms))  # Remove duplicates
 
-    
     return unique_terms
 
 def get_schema_information() -> str:
@@ -459,25 +447,18 @@ def legal_search_rest_handler(request_body: Dict[str, Any]) -> Dict[str, Any]:
         if not query:
             return {"error": "Query parameter is required"}
         
-        
         # Build search parameters
-        print("🔧 Building search parameters...")
         search_params = {
             "query": query,
             "size": request_body.get("size", 10),
         }
 
-        
         # Add optional parameters if present
         optional_params = ["from", "sort", "aggs", "_source"]
         for param in optional_params:
             if param in request_body:
                 search_params[param] = request_body[param]
-                print(f"➕ Added optional parameter '{param}': {json.dumps(request_body[param], default=str)}")
-            else:
-                print(f"⚪ Optional parameter '{param}' not provided")
-        
-        
+
         # Execute the search with fallback
         result = search_legal_documents_with_fallback(search_params)
 
@@ -485,10 +466,10 @@ def legal_search_rest_handler(request_body: Dict[str, Any]) -> Dict[str, Any]:
             return result
 
         return result
-    
+
     except Exception as e:
         error_msg = f"Exception in REST handler: {str(e)}"
-        print(f"💥 Unexpected error in REST handler: {error_msg}")
+        logger.error("REST handler error", error=error_msg)
         return {
             "error": error_msg,
             "message": "Failed to execute search query. Please check your query syntax."
@@ -605,8 +586,8 @@ def example_queries() -> Dict[str, Dict[str, Any]]:
     }
 
 def __main__():
-    print("📋 Running sample query for testing...")
-    
+    logger.info("Running sample query for testing")
+
     # Example usage
     sample_query = {
         "query": {
@@ -619,16 +600,14 @@ def __main__():
         },
         "size": 5
     }
-    
-    
+
     start_time = time.time()
     results = search_legal_documents(sample_query)
     elapsed = time.time() - start_time
 
-    
     if results.get('hits'):
         first_hit = results.get('hits')[0]
-        print(f"🎯 First hit score: {first_hit.get('score')}")
+        logger.info("Test query complete", score=first_hit.get('score'), duration_ms=int(elapsed * 1000))
 
 if __name__ == "__main__":
     __main__()

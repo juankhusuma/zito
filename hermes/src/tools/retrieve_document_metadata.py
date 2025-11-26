@@ -1,4 +1,7 @@
 from .search_legal_document import search_legal_documents
+from src.utils.logger import HermesLogger
+
+logger = HermesLogger("retrieve_metadata")
 
 def get_document_metadata(id: str):
     normalized_id = id.replace("Nomor_", "").replace("Tahun_", "").replace(".pdf", "")
@@ -67,15 +70,18 @@ def get_documents_metadata_batch(ids: list[str]):
 if __name__ == "__main__":
     import sys
     if len(sys.argv) != 2:
+        logger.error("Invalid usage")
         print("Usage: python retrieve_document_metadata.py <document_id>")
         sys.exit(1)
-    
+
     document_id = sys.argv[1]
+    logger.info("Retrieving document metadata", document_id=document_id)
     metadata = get_document_metadata(document_id)
     if metadata:
         print(metadata)
+        logger.info("Document found")
     else:
         print("Document not found.")
+        logger.warning("Document not found", document_id=document_id)
         sys.exit(1)
-    print(metadata)
     sys.exit(0)
