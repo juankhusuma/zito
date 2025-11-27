@@ -7,6 +7,7 @@ __pycache__
 .env.local
 .env.*.local
 !.env.production
-reports/
+docs/
 .DS_Store
-lexin-data-pipeline/
+data-pipeline/
+CLAUDE.md

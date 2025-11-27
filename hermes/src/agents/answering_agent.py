@@ -37,14 +37,14 @@ def stream_answer_user(context: History, message_id: str, documents: list[dict],
     chunks_per_update = 3
     last_update_time = time.time()
     update_interval_seconds = 0.2
-    
+    thinking_duration_sent = False
+
     # Calculate thinking duration once before streaming starts
     thinking_duration = None
     try:
         msg_res = supabase.table("chat").select("thinking_start_time").eq("id", message_id).single().execute()
         if msg_res.data and msg_res.data.get("thinking_start_time"):
             start_time_str = msg_res.data.get("thinking_start_time")
-            # Handle ISO format with Z or offset
             start_time_str = start_time_str.replace('Z', '+00:00')
             start_time = datetime.fromisoformat(start_time_str)
             now = datetime.now(timezone.utc)
@@ -89,8 +89,9 @@ def stream_answer_user(context: History, message_id: str, documents: list[dict],
                             "state": "streaming",
                             "citations": references if references else None,
                         }
-                        if thinking_duration is not None:
+                        if thinking_duration is not None and not thinking_duration_sent:
                             update_payload["thinking_duration"] = int(thinking_duration * 1000)
+                            thinking_duration_sent = True
 
                         supabase.table("chat").update(update_payload).eq("id", message_id).execute()
 

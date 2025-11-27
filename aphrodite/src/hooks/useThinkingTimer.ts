@@ -12,13 +12,10 @@ export function useThinkingTimer(chats: Chat[]) {
     const [finalThinkingDurations, setFinalThinkingDurations] = useState<Record<string, number>>({});
 
     useEffect(() => {
-        // Track thinking start times for loading chats
         chats.forEach((chat) => {
             if (chat.state === "loading" || chat.state === "searching" || chat.state === "extracting") {
                 setThinkingStartTimes(prev => {
-                    // Only set if not already tracking this chat
                     if (!prev[chat.id]) {
-                        // Use thinking_start_time from database if available, otherwise use current time
                         const startTime = chat.thinking_start_time
                             ? new Date(chat.thinking_start_time)
                             : new Date();
@@ -30,20 +27,35 @@ export function useThinkingTimer(chats: Chat[]) {
                     }
                     return prev;
                 });
+            } else if (chat.state === "streaming") {
+                if (chat.thinking_duration && chat.thinking_duration > 0) {
+                    setFinalThinkingDurations(prevDurations => {
+                        if (!prevDurations[chat.id]) {
+                            return {
+                                ...prevDurations,
+                                [chat.id]: chat.thinking_duration
+                            };
+                        }
+                        return prevDurations;
+                    });
+
+                    setThinkingStartTimes(prev => {
+                        const updated = { ...prev };
+                        delete updated[chat.id];
+                        return updated;
+                    });
+                }
             } else if (chat.state === "done" || chat.state === "error") {
-                // Calculate final thinking duration before cleanup
                 setThinkingStartTimes(prev => {
                     if (prev[chat.id]) {
                         const endTime = new Date();
                         const duration = endTime.getTime() - prev[chat.id].getTime();
 
-                        // Store final duration
                         setFinalThinkingDurations(prevDurations => ({
                             ...prevDurations,
                             [chat.id]: duration
                         }));
 
-                        // Clean up start time
                         const updated = { ...prev };
                         delete updated[chat.id];
                         return updated;
