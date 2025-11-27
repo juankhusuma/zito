@@ -38,22 +38,18 @@ def stream_answer_user(context: History, message_id: str, documents: list[dict],
     last_update_time = time.time()
     update_interval_seconds = 0.2
     thinking_duration_sent = False
+    thinking_start_time = None
 
-    # Calculate thinking duration once before streaming starts
-    thinking_duration = None
     try:
         msg_res = supabase.table("chat").select("thinking_start_time").eq("id", message_id).single().execute()
         if msg_res.data and msg_res.data.get("thinking_start_time"):
             start_time_str = msg_res.data.get("thinking_start_time")
             start_time_str = start_time_str.replace('Z', '+00:00')
-            start_time = datetime.fromisoformat(start_time_str)
-            now = datetime.now(timezone.utc)
-            thinking_duration = (now - start_time).total_seconds()
+            thinking_start_time = datetime.fromisoformat(start_time_str)
     except Exception as e:
-        logger.warning("Failed to calculate thinking duration", error=str(e))
+        logger.warning("Failed to get thinking start time", error=str(e))
 
     try:
-        # Generate streaming response
         stream = gemini_client.models.generate_content_stream(
             model=MODEL_NAME,
             contents=context,
@@ -68,7 +64,7 @@ def stream_answer_user(context: History, message_id: str, documents: list[dict],
                 stop_sequences=["Referensi", "Daftar Pustaka", "Sumber:"],
             ),
         )
-        
+
         for chunk in stream:
             if chunk.text:
                 full_content += chunk.text
@@ -89,7 +85,10 @@ def stream_answer_user(context: History, message_id: str, documents: list[dict],
                             "state": "streaming",
                             "citations": references if references else None,
                         }
-                        if thinking_duration is not None and not thinking_duration_sent:
+
+                        if thinking_start_time is not None and not thinking_duration_sent:
+                            now = datetime.now(timezone.utc)
+                            thinking_duration = (now - thinking_start_time).total_seconds()
                             update_payload["thinking_duration"] = int(thinking_duration * 1000)
                             thinking_duration_sent = True
 
