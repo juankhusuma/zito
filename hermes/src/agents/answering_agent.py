@@ -13,7 +13,6 @@ from src.utils.logger import HermesLogger
 logger = HermesLogger("answer")
 
 def answer_generated_questions(history: History, documents: list[dict], serilized_check_res: Questions):
-    time.sleep(1)
     answer_res = gemini_client.models.generate_content(
             model=MODEL_NAME,
             contents=history,

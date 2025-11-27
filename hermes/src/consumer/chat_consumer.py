@@ -59,9 +59,6 @@ class ChatConsumer:
                     refresh_token=body["refresh_token"],
                 )
 
-                if is_new:
-                    SessionManager.handle_new_chat(history, body["session_uid"])
-
                 message_id = body.get("message_id")
                 if not message_id:
                     message_ref = SessionManager.init_message(
@@ -74,8 +71,19 @@ class ChatConsumer:
                     else:
                         raise Exception("Failed to get message_id from init_message response")
 
-                logger.debug("Evaluating question", message_id=message_id)
-                eval_res = MessageHandler.evaluate_question(history)
+                if is_new:
+                    from concurrent.futures import ThreadPoolExecutor
+                    logger.debug("New chat detected, running title generation and question evaluation in parallel", message_id=message_id)
+
+                    with ThreadPoolExecutor(max_workers=2) as executor:
+                        title_future = executor.submit(SessionManager.handle_new_chat, history, body["session_uid"])
+                        eval_future = executor.submit(MessageHandler.evaluate_question, history)
+
+                        title_future.result()
+                        eval_res = eval_future.result()
+                else:
+                    logger.debug("Evaluating question", message_id=message_id)
+                    eval_res = MessageHandler.evaluate_question(history)
 
                 documents = []
                 serialized_answer_res = QnAList(is_sufficient=False, answers=[])
