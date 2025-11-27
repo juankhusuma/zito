@@ -111,15 +111,28 @@ def _extract_search_terms(query: Dict[str, Any]) -> List[str]:
     extract_from_dict(query)
     return list(set(terms))
 
-def search_dense_perpres_documents(query: str, k: int = 5) -> List[Dict[str, Any]]:
+def search_dense_perpres_documents(query_or_embedding, k: int = 10) -> List[Dict[str, Any]]:
+    """
+    Search Pinecone index using either query string or pre-computed embedding.
+
+    Args:
+        query_or_embedding: Either a string query or a list of floats (embedding vector)
+        k: Number of results to return
+
+    Returns:
+        List of document dictionaries with id, score, and source metadata
+    """
     logger.debug("Starting Pinecone dense search", k=k)
 
     try:
-        res = gemini_client.models.embed_content(
-            model="text-embedding-004",
-            contents=query
-        )
-        query_embedding = res.embeddings[0].values
+        if isinstance(query_or_embedding, str):
+            res = gemini_client.models.embed_content(
+                model="text-embedding-004",
+                contents=query_or_embedding
+            )
+            query_embedding = res.embeddings[0].values
+        else:
+            query_embedding = query_or_embedding
 
         results = perpres_index.query(
             vector=query_embedding,

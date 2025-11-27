@@ -7,6 +7,7 @@ from src.common.gemini_client import client as gemini_client
 from google.genai import types
 from ..config.llm import SEARCH_UNDANG_UNDANG_AGENT_PROMPT, REWRITE_PROMPT
 from ..tools.undang_undang_search import undang_undang_document_search, search_dense_undang_undang_documents
+from src.utils.embedding_helper import batch_embed_queries
 
 logger = HermesLogger("uu_agent")
 
@@ -32,22 +33,22 @@ def generate_and_execute_es_query_undang_undang(questions: list[str]):
         }
         documents, error = evaluate_es_query(query_json)
 
-        # Pinecone dense search - PARALLEL execution for better performance
+        # Pinecone dense search with batch embedding optimization
         try:
-            pass  # Removed DEBUG log
             start_time = time.time()
 
-            # Use ThreadPoolExecutor to parallelize Pinecone queries
-            # Limit workers to avoid overwhelming the API
+            # Batch generate embeddings for all questions at once
+            embeddings = batch_embed_queries(questions)
+            logger.debug("Batch embedding complete", queries=len(questions))
+
+            # Parallel Pinecone queries with pre-computed embeddings
             max_workers = min(len(questions), 5)
 
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                # Submit all queries in parallel
                 futures = [
-                    executor.submit(search_dense_undang_undang_documents, question, 5)
-                    for question in questions
+                    executor.submit(search_dense_undang_undang_documents, embeddings[i], 5)
+                    for i in range(len(questions))
                 ]
-                # Collect results as they complete
                 dense_results = [future.result() for future in futures]
 
             # Flatten results
@@ -65,7 +66,6 @@ def generate_and_execute_es_query_undang_undang(questions: list[str]):
             logger.debug("Pinecone search complete", questions=len(questions), documents=len(dense_documents), duration_ms=int(elapsed*1000))
         except Exception as e:
             logger.warning("Pinecone search failed", error=str(e))
-            logger.warning("Falling back to ES-only mode")
             dense_documents = []
 
         if len(documents) == 0:

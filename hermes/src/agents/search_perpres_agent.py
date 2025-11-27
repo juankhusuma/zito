@@ -6,6 +6,7 @@ from src.utils.logger import HermesLogger
 from google.genai import types
 from ..config.llm import SEARCH_PERPRES_AGENT_PROMPT, REWRITE_PROMPT
 from ..tools.perpres_search import perpres_document_search, search_dense_perpres_documents
+from src.utils.embedding_helper import batch_embed_queries
 
 logger = HermesLogger("perpres_agent")
 
@@ -33,12 +34,18 @@ def generate_and_execute_es_query_perpres(questions: list[str]):
 
         try:
             start_time = time.time()
+
+            # Batch generate embeddings for all questions at once
+            embeddings = batch_embed_queries(questions)
+            logger.debug("Batch embedding complete", queries=len(questions))
+
+            # Parallel Pinecone queries with pre-computed embeddings
             max_workers = min(len(questions), 5)
 
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = [
-                    executor.submit(search_dense_perpres_documents, question, 5)
-                    for question in questions
+                    executor.submit(search_dense_perpres_documents, embeddings[i], 5)
+                    for i in range(len(questions))
                 ]
                 dense_results = [future.result() for future in futures]
 

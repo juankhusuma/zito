@@ -116,12 +116,25 @@ def search_legal_documents(search_query: Dict[str, Any]) -> Dict[str, Any]:
             "message": "Failed to execute search query. Please check your query syntax."
         }
     
-def search_dense_undang_undang_documents(query: str, top_k: int = 10) -> List[Dict[str, Any]]:
-    embed_res = gemini_client.models.embed_content(
-        model="text-embedding-004",
-        contents=[query]
-    )
-    embeddings = [float(x) for x in embed_res.embeddings[0].values]
+def search_dense_undang_undang_documents(query_or_embedding, top_k: int = 10) -> List[Dict[str, Any]]:
+    """
+    Search Pinecone index using either query string or pre-computed embedding.
+
+    Args:
+        query_or_embedding: Either a string query or a list of floats (embedding vector)
+        top_k: Number of results to return
+
+    Returns:
+        Pinecone query response as dictionary
+    """
+    if isinstance(query_or_embedding, str):
+        embed_res = gemini_client.models.embed_content(
+            model="text-embedding-004",
+            contents=[query_or_embedding]
+        )
+        embeddings = [float(x) for x in embed_res.embeddings[0].values]
+    else:
+        embeddings = query_or_embedding
 
     response = undang_undang_index.query(
         vector=embeddings,
