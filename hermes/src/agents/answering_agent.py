@@ -46,6 +46,7 @@ def stream_answer_user(context: History, message_id: str, documents: list[dict],
             start_time_str = msg_res.data.get("thinking_start_time")
             start_time_str = start_time_str.replace('Z', '+00:00')
             thinking_start_time = datetime.fromisoformat(start_time_str)
+            logger.info("Thinking start time retrieved", start_time=start_time_str, message_id=message_id)
     except Exception as e:
         logger.warning("Failed to get thinking start time", error=str(e))
 
@@ -70,14 +71,27 @@ def stream_answer_user(context: History, message_id: str, documents: list[dict],
                 if thinking_start_time is not None and not thinking_duration_sent:
                     now = datetime.now(timezone.utc)
                     thinking_duration_ms = int((now - thinking_start_time).total_seconds() * 1000)
+                    logger.info(
+                        "FIRST CHUNK ARRIVED - Calculating thinking duration",
+                        message_id=message_id,
+                        start_time=thinking_start_time.isoformat(),
+                        end_time=now.isoformat(),
+                        duration_ms=thinking_duration_ms,
+                        duration_seconds=f"{thinking_duration_ms / 1000:.2f}s"
+                    )
                     try:
                         supabase.table("chat").update({
                             "thinking_duration": thinking_duration_ms
                         }).eq("id", message_id).execute()
                         thinking_duration_sent = True
-                        logger.info("Thinking duration captured", duration_ms=thinking_duration_ms)
+                        logger.info(
+                            "Thinking duration SENT to database",
+                            message_id=message_id,
+                            duration_ms=thinking_duration_ms,
+                            duration_display=f"{thinking_duration_ms / 1000:.2f}s"
+                        )
                     except Exception as e:
-                        logger.error("Failed to update thinking duration", error=str(e))
+                        logger.error("Failed to update thinking duration", error=str(e), message_id=message_id)
 
                 full_content += chunk.text
                 chunk_count += 1

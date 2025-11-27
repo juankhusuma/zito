@@ -48,13 +48,17 @@ export function useThinkingTimer(chats: Chat[]) {
             } else if (chat.state === "done" || chat.state === "error") {
                 setThinkingStartTimes(prev => {
                     if (prev[chat.id]) {
-                        const endTime = new Date();
-                        const duration = endTime.getTime() - prev[chat.id].getTime();
-
-                        setFinalThinkingDurations(prevDurations => ({
-                            ...prevDurations,
-                            [chat.id]: duration
-                        }));
+                        setFinalThinkingDurations(prevDurations => {
+                            if (!prevDurations[chat.id]) {
+                                const endTime = new Date();
+                                const duration = endTime.getTime() - prev[chat.id].getTime();
+                                return {
+                                    ...prevDurations,
+                                    [chat.id]: duration
+                                };
+                            }
+                            return prevDurations;
+                        });
 
                         const updated = { ...prev };
                         delete updated[chat.id];

@@ -55,35 +55,46 @@ class SessionManager:
     def finalize_message_with_thinking_duration(message_id: str):
         """Calculate and store thinking duration when message is completed"""
         try:
-            # Get thinking_start_time from database
-            chat_record = supabase.table("chat").select("thinking_start_time").eq("id", message_id).execute()
+            chat_record = supabase.table("chat").select("thinking_start_time, thinking_duration").eq("id", message_id).execute()
 
             if chat_record.data and len(chat_record.data) > 0:
+                existing_duration = chat_record.data[0].get("thinking_duration")
+
+                if existing_duration is not None and existing_duration > 0:
+                    logger.info(
+                        "FINALIZE: thinking_duration already set, skipping recalculation",
+                        message_id=message_id,
+                        existing_duration_ms=existing_duration,
+                        existing_duration_display=f"{existing_duration / 1000:.2f}s"
+                    )
+                    return
+
                 thinking_start_time = chat_record.data[0].get("thinking_start_time")
 
                 if thinking_start_time:
-                    # Parse start time and calculate duration
                     from dateutil.parser import parse as parse_date
                     start_time = parse_date(thinking_start_time)
                     end_time = datetime.now(timezone.utc)
 
-                    # Ensure both datetimes are timezone-aware
                     if start_time.tzinfo is None:
                         start_time = start_time.replace(tzinfo=timezone.utc)
 
-                    # Calculate duration in milliseconds
                     duration_ms = int((end_time - start_time).total_seconds() * 1000)
 
-                    # Update chat with thinking duration
                     supabase.table("chat").update({
                         "thinking_duration": duration_ms
                     }).eq("id", message_id).execute()
 
-                    print(f"Stored thinking duration: {duration_ms}ms for message {message_id}")
+                    logger.warning(
+                        "FINALIZE: thinking_duration was NOT set during streaming, calculating now (fallback)",
+                        message_id=message_id,
+                        duration_ms=duration_ms,
+                        duration_display=f"{duration_ms / 1000:.2f}s"
+                    )
                 else:
-                    print(f"No thinking_start_time found for message {message_id}")
+                    logger.warning("No thinking_start_time found", message_id=message_id)
             else:
-                print(f"Chat record not found for message {message_id}")
+                logger.warning("Chat record not found", message_id=message_id)
 
         except Exception as e:
-            print(f"Failed to store thinking duration: {str(e)}")
+            logger.error("Failed to finalize thinking duration", error=str(e), message_id=message_id)
