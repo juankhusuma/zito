@@ -29,9 +29,14 @@ def answer_generated_questions(history: History, documents: list[dict], serilize
     return serialized_answer_res
 
 def stream_answer_user(context: History, message_id: str, documents: list[dict], serialized_answer_res: QnAList):
-    """Stream the response and update the database in real-time"""
+    """Stream the response and update the database with debounced updates"""
     full_content = ""
     citation_processor = CitationProcessor()
+
+    chunk_count = 0
+    chunks_per_update = 3
+    last_update_time = time.time()
+    update_interval_seconds = 0.2
     
     # Calculate thinking duration once before streaming starts
     thinking_duration = None
@@ -64,28 +69,37 @@ def stream_answer_user(context: History, message_id: str, documents: list[dict],
             ),
         )
         
-        # Process each chunk and update database with real-time citation processing
         for chunk in stream:
             if chunk.text:
                 full_content += chunk.text
+                chunk_count += 1
+                current_time = time.time()
+                time_since_last_update = current_time - last_update_time
 
-                try:
-                    processed = citation_processor.process(full_content, documents)
-                    cleaned_content = processed["content"]
-                    references = processed.get("references", [])
+                should_update = (chunk_count >= chunks_per_update) or (time_since_last_update >= update_interval_seconds)
 
-                    update_payload = {
-                        "content": cleaned_content,
-                        "state": "streaming",
-                        "citations": references if references else None,
-                    }
-                    if thinking_duration is not None:
-                        update_payload["thinking_duration"] = int(thinking_duration * 1000)
+                if should_update:
+                    try:
+                        processed = citation_processor.process(full_content, documents)
+                        cleaned_content = processed["content"]
+                        references = processed.get("references", [])
 
-                    supabase.table("chat").update(update_payload).eq("id", message_id).execute()
-                except Exception as db_error:
-                    logger.error("Failed to update streaming content", error=str(db_error))
-                    continue
+                        update_payload = {
+                            "content": cleaned_content,
+                            "state": "streaming",
+                            "citations": references if references else None,
+                        }
+                        if thinking_duration is not None:
+                            update_payload["thinking_duration"] = int(thinking_duration * 1000)
+
+                        supabase.table("chat").update(update_payload).eq("id", message_id).execute()
+
+                        chunk_count = 0
+                        last_update_time = current_time
+
+                    except Exception as db_error:
+                        logger.error("Failed to update streaming content", error=str(db_error))
+                        continue
 
         # Final update with complete state
         try:
