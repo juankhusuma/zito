@@ -67,6 +67,18 @@ def stream_answer_user(context: History, message_id: str, documents: list[dict],
 
         for chunk in stream:
             if chunk.text:
+                if thinking_start_time is not None and not thinking_duration_sent:
+                    now = datetime.now(timezone.utc)
+                    thinking_duration_ms = int((now - thinking_start_time).total_seconds() * 1000)
+                    try:
+                        supabase.table("chat").update({
+                            "thinking_duration": thinking_duration_ms
+                        }).eq("id", message_id).execute()
+                        thinking_duration_sent = True
+                        logger.info("Thinking duration captured", duration_ms=thinking_duration_ms)
+                    except Exception as e:
+                        logger.error("Failed to update thinking duration", error=str(e))
+
                 full_content += chunk.text
                 chunk_count += 1
                 current_time = time.time()
@@ -85,12 +97,6 @@ def stream_answer_user(context: History, message_id: str, documents: list[dict],
                             "state": "streaming",
                             "citations": references if references else None,
                         }
-
-                        if thinking_start_time is not None and not thinking_duration_sent:
-                            now = datetime.now(timezone.utc)
-                            thinking_duration = (now - thinking_start_time).total_seconds()
-                            update_payload["thinking_duration"] = int(thinking_duration * 1000)
-                            thinking_duration_sent = True
 
                         supabase.table("chat").update(update_payload).eq("id", message_id).execute()
 
