@@ -31,7 +31,7 @@ export interface Chat {
         title: string;
         url: string;
     }[];
-    state: "done" | "loading" | "error" | "generating" | "searching" | "extracting";
+    state: "done" | "loading" | "error" | "generating" | "searching" | "extracting" | "streaming";
     thinking_start_time?: string;
     thinking_duration?: number;
 }

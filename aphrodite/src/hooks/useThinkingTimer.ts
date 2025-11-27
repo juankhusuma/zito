@@ -28,12 +28,12 @@ export function useThinkingTimer(chats: Chat[]) {
                     return prev;
                 });
             } else if (chat.state === "streaming") {
-                if (chat.thinking_duration && chat.thinking_duration > 0) {
+                if (chat.thinking_duration && chat.thinking_duration > 0 && typeof chat.thinking_duration === "number") {
                     setFinalThinkingDurations(prevDurations => {
                         if (!prevDurations[chat.id]) {
                             return {
                                 ...prevDurations,
-                                [chat.id]: chat.thinking_duration
+                                [chat.id]: chat.thinking_duration as number
                             };
                         }
                         return prevDurations;
